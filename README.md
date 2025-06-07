@@ -17,7 +17,12 @@ Prototype de jeu 3D isométrique utilisant MonoGame.
    ```bash
    python3 generate_textures.py
    ```
-5. Lancer le jeu :
+5. (Optionnel) Générer des textures de meilleure qualité avec un modèle Stable Diffusion :
+   ```bash
+   pip install --user torch diffusers transformers
+   python3 generate_ai_textures.py
+   ```
+6. Lancer le jeu :
    ```bash
    dotnet run --project TheatreGame
    ```
@@ -26,4 +31,4 @@ Prototype de jeu 3D isométrique utilisant MonoGame.
 
 - Fenêtre : 1280x720
 - Caméra : perspective isométrique simple
-- Les textures de la scène sont générées avec `generate_textures.py`.
+- Les textures de la scène sont générées avec `generate_textures.py` ou, pour un rendu plus réaliste, avec `generate_ai_textures.py`.

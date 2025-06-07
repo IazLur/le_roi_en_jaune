@@ -369,7 +369,7 @@ namespace TheatreGame
 
         private void DrawCampfire()
         {
-            float flicker = 0.1f + (float)_random.NextDouble() * 0.05f;
+            float flicker = (0.1f + (float)_random.NextDouble() * 0.05f) * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64),
                 null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
