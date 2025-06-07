@@ -282,9 +282,9 @@ namespace TheatreGame
             float flicker = 0.8f + (float)_random.NextDouble() * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 48),
-                null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
+                null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
             _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
-                null, Color.White * flicker, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
+                null, Color.White * flicker, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
             _spriteBatch.End();
         }
 
