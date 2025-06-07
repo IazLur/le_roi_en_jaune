@@ -22,7 +22,6 @@ namespace TheatreGame
         private Texture2D _gridTexture;
 
         private Texture2D _campfireTexture;
-        private Texture2D _lightGradientTexture;
 
         private Texture2D _particleTexture;
         private List<Particle> _lightParticles;
@@ -127,9 +126,6 @@ namespace TheatreGame
             _campfireTexture = Texture2D.FromStream(
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/campfire.png"));
-            _lightGradientTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/light_gradient.png"));
 
             _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
             _particleTexture.SetData(new[] { Color.White });
@@ -283,8 +279,6 @@ namespace TheatreGame
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 48),
                 null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
-            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
-                null, Color.White * flicker, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
             _spriteBatch.End();
         }
 
