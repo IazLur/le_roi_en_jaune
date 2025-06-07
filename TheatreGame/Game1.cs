@@ -30,6 +30,8 @@ namespace TheatreGame
         private List<Particle> _dustParticles;
         private List<Particle> _fireParticles;
         private List<Particle> _smokeParticles;
+        private Texture2D _grainTexture;
+        private Color[] _grainData;
         private Random _random;
         private float _time;
 
@@ -141,6 +143,9 @@ namespace TheatreGame
 
             _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
             _particleTexture.SetData(new[] { Color.White });
+
+            _grainTexture = new Texture2D(GraphicsDevice, 128, 128);
+            _grainData = new Color[128 * 128];
         }
 
         protected override void Update(GameTime gameTime)
@@ -153,6 +158,8 @@ namespace TheatreGame
             UpdateParticles(gameTime, _dustParticles);
             UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
             UpdateFireParticles(gameTime, _smokeParticles, _campfireScreenPos, 20f);
+
+            UpdateGrainTexture();
 
             base.Update(gameTime);
         }
@@ -198,6 +205,13 @@ namespace TheatreGame
             DrawTileLights();
             DrawCampfire();
             DrawParticles();
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_grainTexture,
+                new Rectangle(0, 0, _graphics.PreferredBackBufferWidth,
+                    _graphics.PreferredBackBufferHeight),
+                Color.White * 0.15f);
+            _spriteBatch.End();
 
             base.Draw(gameTime);
         }
@@ -379,6 +393,16 @@ namespace TheatreGame
                 }
                 particles[i] = p;
             }
+        }
+
+        private void UpdateGrainTexture()
+        {
+            for (int i = 0; i < _grainData.Length; i++)
+            {
+                byte value = (byte)_random.Next(256);
+                _grainData[i] = new Color(value, value, value);
+            }
+            _grainTexture.SetData(_grainData);
         }
     }
 }
