@@ -21,11 +21,18 @@ namespace TheatreGame
         private Texture2D _curtainTexture;
         private Texture2D _gridTexture;
 
+        private Texture2D _campfireTexture;
+        private Texture2D _lightGradientTexture;
+
         private Texture2D _particleTexture;
         private List<Particle> _lightParticles;
         private List<Particle> _dustParticles;
+        private List<Particle> _fireParticles;
+        private List<Particle> _smokeParticles;
         private Random _random;
         private float _time;
+
+        private Vector2 _campfireScreenPos;
 
         private struct Particle
         {
@@ -79,8 +86,18 @@ namespace TheatreGame
             _random = new Random();
             _lightParticles = new List<Particle>();
             _dustParticles = new List<Particle>();
+            _fireParticles = new List<Particle>();
+            _smokeParticles = new List<Particle>();
             SpawnParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
             SpawnParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
+
+            var screenPoint = GraphicsDevice.Viewport.Project(Vector3.Zero,
+                _projectionMatrix, _viewMatrix, Matrix.Identity);
+            _campfireScreenPos = new Vector2(screenPoint.X, screenPoint.Y);
+            SpawnParticlesAt(_fireParticles, 50, new Color(255, 170, 50, 255),
+                _campfireScreenPos, 10f);
+            SpawnParticlesAt(_smokeParticles, 40, new Color(80, 80, 80, 180),
+                _campfireScreenPos, 15f);
         }
 
         protected override void LoadContent()
@@ -107,6 +124,13 @@ namespace TheatreGame
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/grid_overlay.png"));
 
+            _campfireTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/campfire.png"));
+            _lightGradientTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/light_gradient.png"));
+
             _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
             _particleTexture.SetData(new[] { Color.White });
         }
@@ -119,6 +143,8 @@ namespace TheatreGame
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
+            UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
+            UpdateFireParticles(gameTime, _smokeParticles, _campfireScreenPos, 20f);
 
             base.Update(gameTime);
         }
@@ -161,6 +187,7 @@ namespace TheatreGame
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _curtainVertices, 0, 2);
             }
 
+            DrawCampfire();
             DrawParticles();
 
             base.Draw(gameTime);
@@ -232,6 +259,78 @@ namespace TheatreGame
                     0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
+
+            _spriteBatch.Begin(blendState: BlendState.Additive);
+            foreach (var p in _fireParticles)
+            {
+                _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
+                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+            }
+            _spriteBatch.End();
+
+            _spriteBatch.Begin();
+            foreach (var p in _smokeParticles)
+            {
+                _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
+                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+            }
+            _spriteBatch.End();
+        }
+
+        private void DrawCampfire()
+        {
+            float flicker = 0.8f + (float)_random.NextDouble() * 0.2f;
+            _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
+            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 48),
+                null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
+            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
+                null, Color.White * flicker, 0f, Vector2.Zero, 4f, SpriteEffects.None, 0f);
+            _spriteBatch.End();
+        }
+
+        private void SpawnParticlesAt(List<Particle> list, int count, Color color,
+            Vector2 center, float range)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                list.Add(new Particle
+                {
+                    Position = center + new Vector2(
+                        (float)(_random.NextDouble() * 2 - 1) * range,
+                        (float)(_random.NextDouble() * 2 - 1) * range),
+                    Velocity = new Vector2(
+                        (float)(_random.NextDouble() * 2 - 1),
+                        (float)(_random.NextDouble() * -2 - 0.5f)),
+                    Lifetime = 1f + (float)_random.NextDouble(),
+                    Age = 0f,
+                    Scale = 0.5f + (float)_random.NextDouble() * 0.5f,
+                    Color = color
+                });
+            }
+        }
+
+        private void UpdateFireParticles(GameTime gameTime, List<Particle> particles,
+            Vector2 center, float range)
+        {
+            for (int i = 0; i < particles.Count; i++)
+            {
+                var p = particles[i];
+                p.Age += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                p.Position += p.Velocity;
+
+                if (p.Age >= p.Lifetime)
+                {
+                    p.Position = center + new Vector2(
+                        (float)(_random.NextDouble() * 2 - 1) * range,
+                        (float)(_random.NextDouble() * 2 - 1) * range);
+                    p.Age = 0f;
+                    p.Lifetime = 1f + (float)_random.NextDouble();
+                    p.Velocity = new Vector2(
+                        (float)(_random.NextDouble() * 2 - 1),
+                        (float)(_random.NextDouble() * -2 - 0.5f));
+                }
+                particles[i] = p;
+            }
         }
     }
 }
