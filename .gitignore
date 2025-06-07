@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+**/Content/bin/
+**/Content/obj/
+
+# Generated textures
+TheatreGame/Content/*.png
