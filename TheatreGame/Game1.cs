@@ -22,6 +22,7 @@ namespace TheatreGame
         private Texture2D _gridTexture;
 
         private Texture2D _campfireTexture;
+        private Texture2D _pawnTexture;
 
         private Texture2D _particleTexture;
         private List<Particle> _lightParticles;
@@ -32,6 +33,16 @@ namespace TheatreGame
         private float _time;
 
         private Vector2 _campfireScreenPos;
+
+        private const float CellSize = 2.5f;
+
+        private class Character
+        {
+            public Point BoardPos;
+            public Vector2 ScreenPos;
+        }
+
+        private List<Character> _characters;
 
         private struct Particle
         {
@@ -97,6 +108,10 @@ namespace TheatreGame
                 _campfireScreenPos, 10f);
             SpawnParticlesAt(_smokeParticles, 40, new Color(80, 80, 80, 180),
                 _campfireScreenPos, 15f);
+
+            _characters = new List<Character>();
+            var heroPos = new Point(5, 4);
+            _characters.Add(new Character { BoardPos = heroPos, ScreenPos = Vector2.Zero });
         }
 
         protected override void LoadContent()
@@ -127,6 +142,10 @@ namespace TheatreGame
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/campfire.png"));
 
+            _pawnTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/pawn.png"));
+
             _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
             _particleTexture.SetData(new[] { Color.White });
         }
@@ -141,6 +160,13 @@ namespace TheatreGame
             UpdateParticles(gameTime, _dustParticles);
             UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
             UpdateFireParticles(gameTime, _smokeParticles, _campfireScreenPos, 20f);
+
+            for (int i = 0; i < _characters.Count; i++)
+            {
+                var c = _characters[i];
+                c.ScreenPos = BoardToScreen(c.BoardPos);
+                _characters[i] = c;
+            }
 
             base.Update(gameTime);
         }
@@ -184,6 +210,7 @@ namespace TheatreGame
             }
 
             DrawCampfire();
+            DrawCharacters();
             DrawParticles();
 
             base.Draw(gameTime);
@@ -281,6 +308,26 @@ namespace TheatreGame
                 null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
             _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
                 null, Color.White * flicker, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
+            _spriteBatch.End();
+        }
+
+        private Vector2 BoardToScreen(Point boardPos)
+        {
+            Vector3 world = new Vector3((boardPos.X - 3.5f) * CellSize, 0f,
+                (boardPos.Y - 3.5f) * CellSize);
+            var screen = GraphicsDevice.Viewport.Project(world,
+                _projectionMatrix, _viewMatrix, Matrix.Identity);
+            return new Vector2(screen.X, screen.Y);
+        }
+
+        private void DrawCharacters()
+        {
+            _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
+            foreach (var c in _characters)
+            {
+                _spriteBatch.Draw(_pawnTexture, c.ScreenPos - new Vector2(32, 64),
+                    null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
+            }
             _spriteBatch.End();
         }
 
