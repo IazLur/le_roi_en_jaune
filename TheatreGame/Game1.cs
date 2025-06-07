@@ -27,6 +27,9 @@ namespace TheatreGame
 
         private Texture2D _particleTexture;
         private BasicEffect _colorEffect;
+        private SpriteFont _font;
+        private int _turn = 1;
+        private const string MapName = "TheatreScene";
         private List<Particle> _lightParticles;
         private List<Particle> _dustParticles;
         private List<Particle> _fireParticles;
@@ -182,6 +185,8 @@ namespace TheatreGame
             _endTurnButtonTexture = Texture2D.FromStream(
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/end_turn.png"));
+
+            _font = Content.Load<SpriteFont>("DefaultFont");
 
             _colorEffect = new BasicEffect(GraphicsDevice)
             {
@@ -507,6 +512,7 @@ namespace TheatreGame
                 Math.Clamp(hero.BoardPos.X + dir.X, 0, 7),
                 Math.Clamp(hero.BoardPos.Y + dir.Y, 0, 7));
             _characters[0] = hero;
+            _turn++;
         }
 
         private void DrawUI()
@@ -517,6 +523,23 @@ namespace TheatreGame
             _spriteBatch.Begin();
             _spriteBatch.Draw(_particleTexture, bar, Color.Black * 0.5f);
             _spriteBatch.Draw(_endTurnButtonTexture, _endTurnButtonRect, Color.White);
+
+            string buttonText = "End Turn";
+            Vector2 btnSize = _font.MeasureString(buttonText);
+            Vector2 btnPos = new Vector2(
+                _endTurnButtonRect.Center.X - btnSize.X / 2f,
+                _endTurnButtonRect.Center.Y - btnSize.Y / 2f);
+            _spriteBatch.DrawString(_font, buttonText, btnPos, Color.White);
+
+            float marginX = 20f;
+            float lineHeight = _font.LineSpacing;
+            float vertSpace = (ToolbarHeight - 3 * lineHeight) / 4f;
+            float startY = _graphics.PreferredBackBufferHeight - ToolbarHeight + vertSpace;
+            _spriteBatch.DrawString(_font, $"Entities: {_characters.Count}", new Vector2(marginX, startY), Color.White);
+            startY += lineHeight + vertSpace;
+            _spriteBatch.DrawString(_font, $"Turn: {_turn}", new Vector2(marginX, startY), Color.White);
+            startY += lineHeight + vertSpace;
+            _spriteBatch.DrawString(_font, $"Map: {MapName}", new Vector2(marginX, startY), Color.White);
             _spriteBatch.End();
         }
     }
