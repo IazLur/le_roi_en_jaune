@@ -58,4 +58,16 @@ for r in range(64, 0, -1):
     alpha = int(255 * (r / 64))
     grad_draw.ellipse([center[0]-r, center[1]-r, center[0]+r, center[1]+r],
                      fill=(255, 200, 50, alpha))
+
+# Simple pawn piece texture used for characters
+pawn = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
+pawn_draw = ImageDraw.Draw(pawn)
+# base
+pawn_draw.ellipse([32, 96, 96, 120], fill=(255, 255, 255))
+# body
+pawn_draw.rectangle([56, 56, 72, 96], fill=(255, 255, 255))
+pawn_draw.ellipse([48, 36, 80, 68], fill=(255, 255, 255))
+# head
+pawn_draw.ellipse([52, 24, 76, 48], fill=(255, 255, 255))
+pawn.save('TheatreGame/Content/pawn.png')
 save_if_missing(gradient, 'TheatreGame/Content/light_gradient.png')
