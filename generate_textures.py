@@ -17,3 +17,16 @@ curtain_draw = ImageDraw.Draw(curtain)
 for x in range(0, width, 16):
     curtain_draw.rectangle([x, 0, x+8, height], fill=(140, 10, 30))
 curtain.save('TheatreGame/Content/curtain.png')
+
+# Transparent checkerboard overlay to delimit the board
+grid = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+grid_draw = ImageDraw.Draw(grid)
+square = 32
+for y in range(0, height, square):
+    for x in range(0, width, square):
+        if ((x // square) + (y // square)) % 2 == 0:
+            color = (200, 200, 200, 80)
+        else:
+            color = (120, 120, 120, 80)
+        grid_draw.rectangle([x, y, x + square, y + square], fill=color)
+grid.save('TheatreGame/Content/grid_overlay.png')
