@@ -19,6 +19,7 @@ namespace TheatreGame
         private BasicEffect _effect;
         private Texture2D _floorTexture;
         private Texture2D _curtainTexture;
+        private Texture2D _gridTexture;
 
         private Texture2D _particleTexture;
         private List<Particle> _lightParticles;
@@ -102,6 +103,9 @@ namespace TheatreGame
             _curtainTexture = Texture2D.FromStream(
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/curtain.png"));
+            _gridTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/grid_overlay.png"));
 
             _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
             _particleTexture.SetData(new[] { Color.White });
@@ -139,6 +143,16 @@ namespace TheatreGame
                 pass.Apply();
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _floorVertices, 0, 2);
             }
+
+            // Draw semi-transparent grid overlay on top of the floor
+            GraphicsDevice.BlendState = BlendState.AlphaBlend;
+            _effect.Texture = _gridTexture;
+            foreach (var pass in _effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _floorVertices, 0, 2);
+            }
+            GraphicsDevice.BlendState = BlendState.Opaque;
 
             _effect.Texture = _curtainTexture;
             foreach (var pass in _effect.CurrentTechnique.Passes)
