@@ -13,7 +13,7 @@ Prototype de jeu 3D isométrique utilisant MonoGame.
    ```bash
    pip install --user pillow
    ```
-4. Générer les textures nécessaires :
+4. Générer les textures nécessaires (les textures et la police seront créées/telechargées) :
    ```bash
    python3 generate_textures.py
    ```
@@ -22,7 +22,8 @@ Prototype de jeu 3D isométrique utilisant MonoGame.
    pip install --user torch diffusers transformers
    python3 generate_ai_textures.py
    ```
-6. Lancer le jeu :
+6. Le jeu charge la police `DejaVuSans.ttf` via la librairie FontStashSharp, aucun fichier `.xnb` n'est nécessaire.
+7. Lancer le jeu :
    ```bash
    dotnet run --project TheatreGame
    ```

@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using FontStashSharp;
 
 namespace TheatreGame
 {
@@ -27,7 +28,8 @@ namespace TheatreGame
 
         private Texture2D _particleTexture;
         private BasicEffect _colorEffect;
-        private SpriteFont _font;
+        private FontStashSharp.FontSystem _fontSystem;
+        private FontStashSharp.DynamicSpriteFont _font;
         private int _turn = 1;
         private const string MapName = "TheatreScene";
         private List<Particle> _lightParticles;
@@ -186,7 +188,12 @@ namespace TheatreGame
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/end_turn.png"));
 
-            _font = Content.Load<SpriteFont>("DefaultFont");
+            _fontSystem = new FontStashSharp.FontSystem();
+            using (var fs = TitleContainer.OpenStream("Content/DejaVuSans.ttf"))
+            {
+                _fontSystem.AddFont(fs);
+            }
+            _font = _fontSystem.GetFont(16);
 
             _colorEffect = new BasicEffect(GraphicsDevice)
             {

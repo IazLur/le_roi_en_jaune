@@ -1,7 +1,15 @@
 from PIL import Image, ImageDraw
 import os
+import urllib.request
 
 os.makedirs('TheatreGame/Content', exist_ok=True)
+
+# Download DejaVuSans.ttf if missing so the game can load a font at runtime
+font_path = 'TheatreGame/Content/DejaVuSans.ttf'
+if not os.path.exists(font_path):
+    url = 'https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf'
+    print('Downloading', url)
+    urllib.request.urlretrieve(url, font_path)
 
 
 def save_if_missing(img: Image.Image, path: str):
