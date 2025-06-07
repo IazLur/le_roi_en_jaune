@@ -25,6 +25,7 @@ namespace TheatreGame
         private Texture2D _lightGradientTexture;
 
         private Texture2D _particleTexture;
+        private BasicEffect _colorEffect;
         private List<Particle> _lightParticles;
         private List<Particle> _dustParticles;
         private List<Particle> _fireParticles;
@@ -137,6 +138,12 @@ namespace TheatreGame
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/light_gradient.png"));
 
+            _colorEffect = new BasicEffect(GraphicsDevice)
+            {
+                TextureEnabled = false,
+                VertexColorEnabled = true
+            };
+
             _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
             _particleTexture.SetData(new[] { Color.White });
         }
@@ -193,6 +200,7 @@ namespace TheatreGame
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _curtainVertices, 0, 2);
             }
 
+            DrawTileLights();
             DrawCampfire();
             DrawParticles();
 
@@ -287,11 +295,50 @@ namespace TheatreGame
         {
             float flicker = 0.8f + (float)_random.NextDouble() * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 48),
+            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64),
                 null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
             _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
                 null, Color.White * flicker, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
             _spriteBatch.End();
+        }
+
+        private void DrawTileLights()
+        {
+            const int range = 3;
+            const float tileSize = 20f / 8f; // board is 8x8 tiles on a 20x20 plane
+
+            _colorEffect.View = _viewMatrix;
+            _colorEffect.Projection = _projectionMatrix;
+            _colorEffect.World = Matrix.Identity;
+
+            GraphicsDevice.BlendState = BlendState.Additive;
+            for (int x = -range; x <= range - 1; x++)
+            {
+                for (int z = -range; z <= range - 1; z++)
+                {
+                    DrawTileQuad(x * tileSize, z * tileSize, tileSize,
+                        new Color(255, 240, 150, 100));
+                }
+            }
+            GraphicsDevice.BlendState = BlendState.Opaque;
+        }
+
+        private void DrawTileQuad(float startX, float startZ, float size, Color color)
+        {
+            VertexPositionColor[] verts = new VertexPositionColor[6];
+            float y = 0.01f; // slightly above floor to avoid z-fighting
+            verts[0] = new VertexPositionColor(new Vector3(startX, y, startZ), color);
+            verts[1] = new VertexPositionColor(new Vector3(startX + size, y, startZ), color);
+            verts[2] = new VertexPositionColor(new Vector3(startX + size, y, startZ + size), color);
+            verts[3] = new VertexPositionColor(new Vector3(startX + size, y, startZ + size), color);
+            verts[4] = new VertexPositionColor(new Vector3(startX, y, startZ + size), color);
+            verts[5] = new VertexPositionColor(new Vector3(startX, y, startZ), color);
+
+            foreach (var pass in _colorEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, verts, 0, 2);
+            }
         }
 
         private void SpawnParticlesAt(List<Particle> list, int count, Color color,
