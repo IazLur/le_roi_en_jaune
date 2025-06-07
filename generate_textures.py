@@ -32,9 +32,9 @@ square = 16
 for y in range(0, height, square):
     for x in range(0, width, square):
         if ((x // square) + (y // square)) % 2 == 0:
-            color = (200, 200, 200, 25)
+            color = (0, 0, 0, 30)
         else:
-            color = (120, 120, 120, 25)
+            color = (0, 0, 0, 15)
         grid_draw.rectangle([x, y, x + square, y + square], fill=color)
 save_if_missing(grid, 'TheatreGame/Content/grid_overlay.png')
 
