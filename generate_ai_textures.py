@@ -13,7 +13,9 @@ def generate_with_prompt(pipe, prompt: str, path: str, size=(512, 512)):
     if os.path.exists(path):
         return
     image = pipe(prompt).images[0]
-    image = image.resize(size, Image.ANTIALIAS)
+    # Pillow removed ``Image.ANTIALIAS`` in version 10; ``Image.LANCZOS`` is the
+    # recommended replacement and is compatible with older versions too.
+    image = image.resize(size, Image.LANCZOS)
     image.save(path)
 
 
