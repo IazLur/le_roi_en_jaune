@@ -68,8 +68,16 @@ namespace TheatreGame
                 VertexColorEnabled = false
             };
 
-            _floorTexture = Content.Load<Texture2D>("stage_floor");
-            _curtainTexture = Content.Load<Texture2D>("curtain");
+            // MonoGame's ContentManager expects pre-built XNB files. For this
+            // simple prototype we generate the PNG textures at runtime and
+            // load them directly from disk instead of using the content
+            // pipeline.
+            _floorTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/stage_floor.png"));
+            _curtainTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/curtain.png"));
         }
 
         protected override void Update(GameTime gameTime)
