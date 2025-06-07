@@ -92,6 +92,12 @@ namespace TheatreGame
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
+            // The quads are defined with a counter-clockwise winding order.
+            // MonoGame culls counter-clockwise primitives by default, which
+            // resulted in nothing being rendered and the screen staying blue.
+            // Switch to culling clockwise faces so our geometry becomes visible.
+            GraphicsDevice.RasterizerState = RasterizerState.CullClockwise;
+
             _effect.View = _viewMatrix;
             _effect.Projection = _projectionMatrix;
             _effect.World = Matrix.Identity;
