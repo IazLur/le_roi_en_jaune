@@ -32,9 +32,9 @@ square = 16
 for y in range(0, height, square):
     for x in range(0, width, square):
         if ((x // square) + (y // square)) % 2 == 0:
-            color = (200, 200, 200, 10)
+            color = (200, 200, 200, 25)
         else:
-            color = (120, 120, 120, 10)
+            color = (120, 120, 120, 25)
         grid_draw.rectangle([x, y, x + square, y + square], fill=color)
 save_if_missing(grid, 'TheatreGame/Content/grid_overlay.png')
 
@@ -71,3 +71,19 @@ pawn_draw.ellipse([48, 36, 80, 68], fill=(0, 0, 0))
 pawn_draw.ellipse([52, 24, 76, 48], fill=(0, 0, 0))
 pawn.save('TheatreGame/Content/pawn.png')
 save_if_missing(gradient, 'TheatreGame/Content/light_gradient.png')
+
+# End turn button
+button_w, button_h = 140, 40
+button = Image.new('RGBA', (button_w, button_h), (80, 80, 80, 255))
+btn_draw = ImageDraw.Draw(button)
+btn_draw.rectangle([0, 0, button_w-1, button_h-1], outline=(200, 200, 200))
+try:
+    from PIL import ImageFont
+    font = ImageFont.load_default()
+    text = "End turn"
+    text_w, text_h = btn_draw.textsize(text, font=font)
+    btn_draw.text(((button_w - text_w) / 2, (button_h - text_h) / 2),
+                  text, font=font, fill=(255, 255, 255))
+except Exception:
+    pass
+save_if_missing(button, 'TheatreGame/Content/end_turn.png')

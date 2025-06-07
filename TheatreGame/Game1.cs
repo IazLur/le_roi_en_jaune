@@ -38,6 +38,12 @@ namespace TheatreGame
 
         private Vector2 _campfireScreenPos;
 
+        private Texture2D _endTurnButtonTexture;
+        private Rectangle _endTurnButtonRect;
+        private MouseState _prevMouseState;
+
+        private const int ToolbarHeight = 80;
+
         private const float CellSize = 2.5f;
 
         private class Character
@@ -117,7 +123,23 @@ namespace TheatreGame
 
             _characters = new List<Character>();
             var heroPos = new Point(5, 4);
-            _characters.Add(new Character { BoardPos = heroPos, ScreenPos = Vector2.Zero });
+
+            var heroScreen = GraphicsDevice.Viewport.Project(
+                new Vector3((heroPos.X - 3.5f) * CellSize, 0f, (heroPos.Y - 3.5f) * CellSize),
+                _projectionMatrix, _viewMatrix, Matrix.Identity);
+            _characters.Add(new Character
+            {
+                BoardPos = heroPos,
+                ScreenPos = new Vector2(heroScreen.X, heroScreen.Y)
+            });
+
+            int buttonWidth = 140;
+            int buttonHeight = 40;
+            _endTurnButtonRect = new Rectangle(
+                _graphics.PreferredBackBufferWidth - buttonWidth - 20,
+                _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - buttonHeight) / 2,
+                buttonWidth,
+                buttonHeight);
         }
 
         protected override void LoadContent()
@@ -157,6 +179,9 @@ namespace TheatreGame
             _lightGradientTexture = Texture2D.FromStream(
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/light_gradient.png"));
+            _endTurnButtonTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/end_turn.png"));
 
             _colorEffect = new BasicEffect(GraphicsDevice)
             {
@@ -177,6 +202,15 @@ namespace TheatreGame
                 Exit();
 
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            var mouse = Mouse.GetState();
+            if (mouse.LeftButton == ButtonState.Pressed &&
+                _prevMouseState.LeftButton == ButtonState.Released &&
+                _endTurnButtonRect.Contains(mouse.Position))
+            {
+                EndTurn();
+            }
+            _prevMouseState = mouse;
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
             UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
@@ -185,7 +219,8 @@ namespace TheatreGame
             for (int i = 0; i < _characters.Count; i++)
             {
                 var c = _characters[i];
-                c.ScreenPos = BoardToScreen(c.BoardPos);
+                var target = BoardToScreen(c.BoardPos);
+                c.ScreenPos = Vector2.Lerp(c.ScreenPos, target, 0.1f);
                 _characters[i] = c;
             }
             UpdateGrainTexture();
@@ -242,6 +277,8 @@ namespace TheatreGame
                     _graphics.PreferredBackBufferHeight),
                 Color.White * 0.05f);
             _spriteBatch.End();
+
+            DrawUI();
 
             base.Draw(gameTime);
         }
@@ -332,7 +369,7 @@ namespace TheatreGame
 
         private void DrawCampfire()
         {
-            float flicker = 0.8f + (float)_random.NextDouble() * 0.2f;
+            float flicker = 0.1f + (float)_random.NextDouble() * 0.05f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64),
                 null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
@@ -453,6 +490,34 @@ namespace TheatreGame
                 _grainData[i] = new Color(value, value, value);
             }
             _grainTexture.SetData(_grainData);
+        }
+
+        private void EndTurn()
+        {
+            if (_characters.Count == 0)
+                return;
+
+            var hero = _characters[0];
+            Point[] dirs = new[]
+            {
+                new Point(1,0), new Point(-1,0), new Point(0,1), new Point(0,-1)
+            };
+            Point dir = dirs[_random.Next(dirs.Length)];
+            hero.BoardPos = new Point(
+                Math.Clamp(hero.BoardPos.X + dir.X, 0, 7),
+                Math.Clamp(hero.BoardPos.Y + dir.Y, 0, 7));
+            _characters[0] = hero;
+        }
+
+        private void DrawUI()
+        {
+            Rectangle bar = new Rectangle(0,
+                _graphics.PreferredBackBufferHeight - ToolbarHeight,
+                _graphics.PreferredBackBufferWidth, ToolbarHeight);
+            _spriteBatch.Begin();
+            _spriteBatch.Draw(_particleTexture, bar, Color.Black * 0.5f);
+            _spriteBatch.Draw(_endTurnButtonTexture, _endTurnButtonRect, Color.White);
+            _spriteBatch.End();
         }
     }
 }
