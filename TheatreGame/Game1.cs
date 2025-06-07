@@ -14,8 +14,8 @@ namespace TheatreGame
         private Matrix _viewMatrix;
         private Matrix _projectionMatrix;
 
-        private VertexPositionTexture[] _floorVertices;
-        private VertexPositionTexture[] _curtainVertices;
+        private VertexPositionNormalTexture[] _floorVertices;
+        private VertexPositionNormalTexture[] _curtainVertices;
         private BasicEffect _effect;
         private Texture2D _floorTexture;
         private Texture2D _curtainTexture;
@@ -23,12 +23,16 @@ namespace TheatreGame
 
         private Texture2D _campfireTexture;
         private Texture2D _pawnTexture;
+        private Texture2D _lightGradientTexture;
 
         private Texture2D _particleTexture;
+        private BasicEffect _colorEffect;
         private List<Particle> _lightParticles;
         private List<Particle> _dustParticles;
         private List<Particle> _fireParticles;
         private List<Particle> _smokeParticles;
+        private Texture2D _grainTexture;
+        private Color[] _grainData;
         private Random _random;
         private float _time;
 
@@ -75,23 +79,25 @@ namespace TheatreGame
             _projectionMatrix = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f),
                 GraphicsDevice.Viewport.AspectRatio, 0.1f, 100f);
 
-            // Create floor quad
-            _floorVertices = new VertexPositionTexture[6];
-            _floorVertices[0] = new VertexPositionTexture(new Vector3(-10, 0, -10), new Vector2(0, 0));
-            _floorVertices[1] = new VertexPositionTexture(new Vector3(-10, 0, 10), new Vector2(0, 1));
-            _floorVertices[2] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 0));
-            _floorVertices[3] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 0));
-            _floorVertices[4] = new VertexPositionTexture(new Vector3(-10, 0, 10), new Vector2(0, 1));
-            _floorVertices[5] = new VertexPositionTexture(new Vector3(10, 0, 10), new Vector2(1, 1));
+            // Create floor quad with normals for lighting
+            _floorVertices = new VertexPositionNormalTexture[6];
+            var floorNormal = Vector3.Up;
+            _floorVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), floorNormal, new Vector2(0, 0));
+            _floorVertices[1] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
+            _floorVertices[2] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
+            _floorVertices[3] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
+            _floorVertices[4] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
+            _floorVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 0, 10), floorNormal, new Vector2(1, 1));
 
             // Create curtain quad behind the stage
-            _curtainVertices = new VertexPositionTexture[6];
-            _curtainVertices[0] = new VertexPositionTexture(new Vector3(-10, 0, -10), new Vector2(0, 1));
-            _curtainVertices[1] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 1));
-            _curtainVertices[2] = new VertexPositionTexture(new Vector3(-10, 10, -10), new Vector2(0, 0));
-            _curtainVertices[3] = new VertexPositionTexture(new Vector3(-10, 10, -10), new Vector2(0, 0));
-            _curtainVertices[4] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 1));
-            _curtainVertices[5] = new VertexPositionTexture(new Vector3(10, 10, -10), new Vector2(1, 0));
+            _curtainVertices = new VertexPositionNormalTexture[6];
+            var curtainNormal = Vector3.Backward;
+            _curtainVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), curtainNormal, new Vector2(0, 1));
+            _curtainVertices[1] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
+            _curtainVertices[2] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
+            _curtainVertices[3] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
+            _curtainVertices[4] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
+            _curtainVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 10, -10), curtainNormal, new Vector2(1, 0));
 
             _random = new Random();
             _lightParticles = new List<Particle>();
@@ -121,8 +127,11 @@ namespace TheatreGame
             _effect = new BasicEffect(GraphicsDevice)
             {
                 TextureEnabled = true,
-                VertexColorEnabled = false
+                VertexColorEnabled = false,
+                LightingEnabled = true,
+                PreferPerPixelLighting = true
             };
+            _effect.EnableDefaultLighting();
 
             // MonoGame's ContentManager expects pre-built XNB files. For this
             // simple prototype we generate the PNG textures at runtime and
@@ -145,9 +154,21 @@ namespace TheatreGame
             _pawnTexture = Texture2D.FromStream(
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/pawn.png"));
+            _lightGradientTexture = Texture2D.FromStream(
+                GraphicsDevice,
+                TitleContainer.OpenStream("Content/light_gradient.png"));
+
+            _colorEffect = new BasicEffect(GraphicsDevice)
+            {
+                TextureEnabled = false,
+                VertexColorEnabled = true
+            };
 
             _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
             _particleTexture.SetData(new[] { Color.White });
+
+            _grainTexture = new Texture2D(GraphicsDevice, 128, 128);
+            _grainData = new Color[128 * 128];
         }
 
         protected override void Update(GameTime gameTime)
@@ -167,6 +188,7 @@ namespace TheatreGame
                 c.ScreenPos = BoardToScreen(c.BoardPos);
                 _characters[i] = c;
             }
+            UpdateGrainTexture();
 
             base.Update(gameTime);
         }
@@ -209,9 +231,17 @@ namespace TheatreGame
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _curtainVertices, 0, 2);
             }
 
+            DrawTileLights();
             DrawCampfire();
             DrawCharacters();
             DrawParticles();
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(_grainTexture,
+                new Rectangle(0, 0, _graphics.PreferredBackBufferWidth,
+                    _graphics.PreferredBackBufferHeight),
+                Color.White * 0.15f);
+            _spriteBatch.End();
 
             base.Draw(gameTime);
         }
@@ -304,7 +334,7 @@ namespace TheatreGame
         {
             float flicker = 0.8f + (float)_random.NextDouble() * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 48),
+            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64),
                 null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
             _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
                 null, Color.White * flicker, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
@@ -329,6 +359,45 @@ namespace TheatreGame
                     null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
+        }
+        
+        private void DrawTileLights()
+        {
+            const int range = 3;
+            const float tileSize = 20f / 8f; // board is 8x8 tiles on a 20x20 plane
+
+            _colorEffect.View = _viewMatrix;
+            _colorEffect.Projection = _projectionMatrix;
+            _colorEffect.World = Matrix.Identity;
+
+            GraphicsDevice.BlendState = BlendState.Additive;
+            for (int x = -range; x <= range - 1; x++)
+            {
+                for (int z = -range; z <= range - 1; z++)
+                {
+                    DrawTileQuad(x * tileSize, z * tileSize, tileSize,
+                        new Color(255, 240, 150, 100));
+                }
+            }
+            GraphicsDevice.BlendState = BlendState.Opaque;
+        }
+
+        private void DrawTileQuad(float startX, float startZ, float size, Color color)
+        {
+            VertexPositionColor[] verts = new VertexPositionColor[6];
+            float y = 0.01f; // slightly above floor to avoid z-fighting
+            verts[0] = new VertexPositionColor(new Vector3(startX, y, startZ), color);
+            verts[1] = new VertexPositionColor(new Vector3(startX + size, y, startZ), color);
+            verts[2] = new VertexPositionColor(new Vector3(startX + size, y, startZ + size), color);
+            verts[3] = new VertexPositionColor(new Vector3(startX + size, y, startZ + size), color);
+            verts[4] = new VertexPositionColor(new Vector3(startX, y, startZ + size), color);
+            verts[5] = new VertexPositionColor(new Vector3(startX, y, startZ), color);
+
+            foreach (var pass in _colorEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, verts, 0, 2);
+            }
         }
 
         private void SpawnParticlesAt(List<Particle> list, int count, Color color,
@@ -374,6 +443,16 @@ namespace TheatreGame
                 }
                 particles[i] = p;
             }
+        }
+
+        private void UpdateGrainTexture()
+        {
+            for (int i = 0; i < _grainData.Length; i++)
+            {
+                byte value = (byte)_random.Next(256);
+                _grainData[i] = new Color(value, value, value);
+            }
+            _grainTexture.SetData(_grainData);
         }
     }
 }
