@@ -1,6 +1,8 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
+using System.Collections.Generic;
 
 namespace TheatreGame
 {
@@ -17,6 +19,22 @@ namespace TheatreGame
         private BasicEffect _effect;
         private Texture2D _floorTexture;
         private Texture2D _curtainTexture;
+
+        private Texture2D _particleTexture;
+        private List<Particle> _lightParticles;
+        private List<Particle> _dustParticles;
+        private Random _random;
+        private float _time;
+
+        private struct Particle
+        {
+            public Vector2 Position;
+            public Vector2 Velocity;
+            public float Lifetime;
+            public float Age;
+            public float Scale;
+            public Color Color;
+        }
 
         public Game1()
         {
@@ -56,6 +74,12 @@ namespace TheatreGame
             _curtainVertices[3] = new VertexPositionTexture(new Vector3(-10, 10, -10), new Vector2(0, 0));
             _curtainVertices[4] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 1));
             _curtainVertices[5] = new VertexPositionTexture(new Vector3(10, 10, -10), new Vector2(1, 0));
+
+            _random = new Random();
+            _lightParticles = new List<Particle>();
+            _dustParticles = new List<Particle>();
+            SpawnParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
+            SpawnParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
         }
 
         protected override void LoadContent()
@@ -78,6 +102,9 @@ namespace TheatreGame
             _curtainTexture = Texture2D.FromStream(
                 GraphicsDevice,
                 TitleContainer.OpenStream("Content/curtain.png"));
+
+            _particleTexture = new Texture2D(GraphicsDevice, 1, 1);
+            _particleTexture.SetData(new[] { Color.White });
         }
 
         protected override void Update(GameTime gameTime)
@@ -85,12 +112,16 @@ namespace TheatreGame
             if (Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
+            _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
+            UpdateParticles(gameTime, _lightParticles);
+            UpdateParticles(gameTime, _dustParticles);
+
             base.Update(gameTime);
         }
 
         protected override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(Color.CornflowerBlue);
+            GraphicsDevice.Clear(Color.Black);
 
             // The quads are defined with a counter-clockwise winding order.
             // MonoGame culls counter-clockwise primitives by default, which
@@ -116,7 +147,77 @@ namespace TheatreGame
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _curtainVertices, 0, 2);
             }
 
+            DrawParticles();
+
             base.Draw(gameTime);
+        }
+
+        private void SpawnParticles(List<Particle> list, int count, Color color)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                list.Add(new Particle
+                {
+                    Position = new Vector2(
+                        _random.Next(0, _graphics.PreferredBackBufferWidth),
+                        _random.Next(0, _graphics.PreferredBackBufferHeight)),
+                    Velocity = new Vector2(
+                        (float)(_random.NextDouble() * 2 - 1),
+                        (float)(_random.NextDouble() * 2 - 1)),
+                    Lifetime = 5f + (float)_random.NextDouble() * 5f,
+                    Age = 0f,
+                    Scale = 0.5f + (float)_random.NextDouble(),
+                    Color = color
+                });
+            }
+        }
+
+        private void UpdateParticles(GameTime gameTime, List<Particle> particles)
+        {
+            for (int i = 0; i < particles.Count; i++)
+            {
+                var p = particles[i];
+                p.Age += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                p.Position += p.Velocity;
+
+                if (p.Age >= p.Lifetime ||
+                    p.Position.X < 0 || p.Position.X > _graphics.PreferredBackBufferWidth ||
+                    p.Position.Y < 0 || p.Position.Y > _graphics.PreferredBackBufferHeight)
+                {
+                    p.Position = new Vector2(
+                        _random.Next(0, _graphics.PreferredBackBufferWidth),
+                        _random.Next(0, _graphics.PreferredBackBufferHeight));
+                    p.Age = 0f;
+                    p.Lifetime = 5f + (float)_random.NextDouble() * 5f;
+                    p.Velocity = new Vector2(
+                        (float)(_random.NextDouble() * 2 - 1),
+                        (float)(_random.NextDouble() * 2 - 1));
+                }
+                particles[i] = p;
+            }
+        }
+
+        private void DrawParticles()
+        {
+            _spriteBatch.Begin(blendState: BlendState.Additive);
+            foreach (var p in _lightParticles)
+            {
+                Vector2 offset = new Vector2((float)Math.Sin(_time * 0.5f) * 5f,
+                    (float)Math.Cos(_time * 0.5f) * 5f);
+                _spriteBatch.Draw(_particleTexture, p.Position + offset, null, p.Color,
+                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+            }
+            _spriteBatch.End();
+
+            _spriteBatch.Begin();
+            foreach (var p in _dustParticles)
+            {
+                Vector2 offset = new Vector2((float)Math.Sin(_time) * 2f,
+                    (float)Math.Cos(_time) * 2f);
+                _spriteBatch.Draw(_particleTexture, p.Position + offset, null, p.Color,
+                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+            }
+            _spriteBatch.End();
         }
     }
 }
