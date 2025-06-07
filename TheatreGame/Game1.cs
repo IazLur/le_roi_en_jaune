@@ -240,7 +240,7 @@ namespace TheatreGame
             _spriteBatch.Draw(_grainTexture,
                 new Rectangle(0, 0, _graphics.PreferredBackBufferWidth,
                     _graphics.PreferredBackBufferHeight),
-                Color.White * 0.15f);
+                Color.White * 0.05f);
             _spriteBatch.End();
 
             base.Draw(gameTime);

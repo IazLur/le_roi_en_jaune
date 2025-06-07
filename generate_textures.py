@@ -32,9 +32,9 @@ square = 16
 for y in range(0, height, square):
     for x in range(0, width, square):
         if ((x // square) + (y // square)) % 2 == 0:
-            color = (200, 200, 200, 40)
+            color = (200, 200, 200, 10)
         else:
-            color = (120, 120, 120, 40)
+            color = (120, 120, 120, 10)
         grid_draw.rectangle([x, y, x + square, y + square], fill=color)
 save_if_missing(grid, 'TheatreGame/Content/grid_overlay.png')
 
@@ -51,11 +51,11 @@ fire_draw.polygon([(64, 56), (52, 88), (76, 88)], fill=(255, 220, 0))
 save_if_missing(fire, 'TheatreGame/Content/campfire.png')
 
 # Radial light gradient used for the flickering light
-gradient = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
+gradient = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
 grad_draw = ImageDraw.Draw(gradient)
-center = (64, 64)
-for r in range(64, 0, -1):
-    alpha = int(255 * (r / 64))
+center = (128, 128)
+for r in range(128, 0, -1):
+    alpha = int(255 * ((r / 128) ** 2))
     grad_draw.ellipse([center[0]-r, center[1]-r, center[0]+r, center[1]+r],
                      fill=(255, 200, 50, alpha))
 
@@ -63,11 +63,11 @@ for r in range(64, 0, -1):
 pawn = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
 pawn_draw = ImageDraw.Draw(pawn)
 # base
-pawn_draw.ellipse([32, 96, 96, 120], fill=(255, 255, 255))
+pawn_draw.ellipse([32, 96, 96, 120], fill=(0, 0, 0))
 # body
-pawn_draw.rectangle([56, 56, 72, 96], fill=(255, 255, 255))
-pawn_draw.ellipse([48, 36, 80, 68], fill=(255, 255, 255))
+pawn_draw.rectangle([56, 56, 72, 96], fill=(0, 0, 0))
+pawn_draw.ellipse([48, 36, 80, 68], fill=(0, 0, 0))
 # head
-pawn_draw.ellipse([52, 24, 76, 48], fill=(255, 255, 255))
+pawn_draw.ellipse([52, 24, 76, 48], fill=(0, 0, 0))
 pawn.save('TheatreGame/Content/pawn.png')
 save_if_missing(gradient, 'TheatreGame/Content/light_gradient.png')
