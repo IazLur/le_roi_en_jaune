@@ -14,8 +14,8 @@ namespace TheatreGame
         private Matrix _viewMatrix;
         private Matrix _projectionMatrix;
 
-        private VertexPositionTexture[] _floorVertices;
-        private VertexPositionTexture[] _curtainVertices;
+        private VertexPositionNormalTexture[] _floorVertices;
+        private VertexPositionNormalTexture[] _curtainVertices;
         private BasicEffect _effect;
         private Texture2D _floorTexture;
         private Texture2D _curtainTexture;
@@ -66,23 +66,25 @@ namespace TheatreGame
             _projectionMatrix = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f),
                 GraphicsDevice.Viewport.AspectRatio, 0.1f, 100f);
 
-            // Create floor quad
-            _floorVertices = new VertexPositionTexture[6];
-            _floorVertices[0] = new VertexPositionTexture(new Vector3(-10, 0, -10), new Vector2(0, 0));
-            _floorVertices[1] = new VertexPositionTexture(new Vector3(-10, 0, 10), new Vector2(0, 1));
-            _floorVertices[2] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 0));
-            _floorVertices[3] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 0));
-            _floorVertices[4] = new VertexPositionTexture(new Vector3(-10, 0, 10), new Vector2(0, 1));
-            _floorVertices[5] = new VertexPositionTexture(new Vector3(10, 0, 10), new Vector2(1, 1));
+            // Create floor quad with normals for lighting
+            _floorVertices = new VertexPositionNormalTexture[6];
+            var floorNormal = Vector3.Up;
+            _floorVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), floorNormal, new Vector2(0, 0));
+            _floorVertices[1] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
+            _floorVertices[2] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
+            _floorVertices[3] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
+            _floorVertices[4] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
+            _floorVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 0, 10), floorNormal, new Vector2(1, 1));
 
             // Create curtain quad behind the stage
-            _curtainVertices = new VertexPositionTexture[6];
-            _curtainVertices[0] = new VertexPositionTexture(new Vector3(-10, 0, -10), new Vector2(0, 1));
-            _curtainVertices[1] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 1));
-            _curtainVertices[2] = new VertexPositionTexture(new Vector3(-10, 10, -10), new Vector2(0, 0));
-            _curtainVertices[3] = new VertexPositionTexture(new Vector3(-10, 10, -10), new Vector2(0, 0));
-            _curtainVertices[4] = new VertexPositionTexture(new Vector3(10, 0, -10), new Vector2(1, 1));
-            _curtainVertices[5] = new VertexPositionTexture(new Vector3(10, 10, -10), new Vector2(1, 0));
+            _curtainVertices = new VertexPositionNormalTexture[6];
+            var curtainNormal = Vector3.Backward;
+            _curtainVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), curtainNormal, new Vector2(0, 1));
+            _curtainVertices[1] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
+            _curtainVertices[2] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
+            _curtainVertices[3] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
+            _curtainVertices[4] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
+            _curtainVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 10, -10), curtainNormal, new Vector2(1, 0));
 
             _random = new Random();
             _lightParticles = new List<Particle>();
@@ -108,8 +110,11 @@ namespace TheatreGame
             _effect = new BasicEffect(GraphicsDevice)
             {
                 TextureEnabled = true,
-                VertexColorEnabled = false
+                VertexColorEnabled = false,
+                LightingEnabled = true,
+                PreferPerPixelLighting = true
             };
+            _effect.EnableDefaultLighting();
 
             // MonoGame's ContentManager expects pre-built XNB files. For this
             // simple prototype we generate the PNG textures at runtime and
