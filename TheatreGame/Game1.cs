@@ -120,22 +120,24 @@ namespace TheatreGame
             // Create floor quad with normals for lighting
             _floorVertices = new VertexPositionNormalTexture[6];
             var floorNormal = Vector3.Up;
+            // Tile the floor texture 8x8 across the stage
             _floorVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), floorNormal, new Vector2(0, 0));
-            _floorVertices[1] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
-            _floorVertices[2] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
-            _floorVertices[3] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
-            _floorVertices[4] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
-            _floorVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 0, 10), floorNormal, new Vector2(1, 1));
+            _floorVertices[1] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 8));
+            _floorVertices[2] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(8, 0));
+            _floorVertices[3] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(8, 0));
+            _floorVertices[4] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 8));
+            _floorVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 0, 10), floorNormal, new Vector2(8, 8));
 
             // Create curtain quad behind the stage
             _curtainVertices = new VertexPositionNormalTexture[6];
             var curtainNormal = Vector3.Backward;
-            _curtainVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), curtainNormal, new Vector2(0, 1));
-            _curtainVertices[1] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
+            // Tile the curtain texture so it spans the stage width
+            _curtainVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), curtainNormal, new Vector2(0, 4));
+            _curtainVertices[1] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(8, 4));
             _curtainVertices[2] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
             _curtainVertices[3] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
-            _curtainVertices[4] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
-            _curtainVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 10, -10), curtainNormal, new Vector2(1, 0));
+            _curtainVertices[4] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(8, 4));
+            _curtainVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 10, -10), curtainNormal, new Vector2(8, 0));
 
             _random = new Random();
             _lightParticles = new List<Particle>();
@@ -188,10 +190,29 @@ namespace TheatreGame
             if (File.Exists(finalPath))
             {
                 using var stream = TitleContainer.OpenStream(finalPath);
-                return Texture2D.FromStream(GraphicsDevice, stream);
+                return LoadAndScale(stream);
             }
             using var fallback = TitleContainer.OpenStream(Path.Combine("Content", fileName));
-            return Texture2D.FromStream(GraphicsDevice, fallback);
+            return LoadAndScale(fallback);
+        }
+
+        private Texture2D LoadAndScale(Stream stream)
+        {
+            var texture = Texture2D.FromStream(GraphicsDevice, stream);
+            if (texture.Width == 128 && texture.Height == 128)
+                return texture;
+
+            // Resize to 128x128 using a temporary render target
+            var rt = new RenderTarget2D(GraphicsDevice, 128, 128);
+            using var sb = new SpriteBatch(GraphicsDevice);
+            GraphicsDevice.SetRenderTarget(rt);
+            GraphicsDevice.Clear(Color.Transparent);
+            sb.Begin(samplerState: SamplerState.LinearClamp);
+            sb.Draw(texture, new Rectangle(0, 0, 128, 128), Color.White);
+            sb.End();
+            GraphicsDevice.SetRenderTarget(null);
+            texture.Dispose();
+            return rt;
         }
 
         protected override void LoadContent()
@@ -387,6 +408,9 @@ namespace TheatreGame
             // resulted in nothing being rendered and the screen staying blue.
             // Switch to culling clockwise faces so our geometry becomes visible.
             GraphicsDevice.RasterizerState = RasterizerState.CullClockwise;
+
+            // Ensure floor and curtain textures repeat when UVs exceed [0,1]
+            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 
             _effect.View = _viewMatrix;
             _effect.Projection = _projectionMatrix;
