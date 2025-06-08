@@ -63,7 +63,7 @@ namespace TheatreGame
             public bool IsPlayer;
         }
 
-        private List<Character> _characters;
+        private List<Character> _characters = new List<Character>();
         private Point? _hoveredTile;
         private Point? _selectedTile;
         private List<Point> _playerPath;
