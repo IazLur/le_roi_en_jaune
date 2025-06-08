@@ -68,6 +68,8 @@ namespace TheatreGame
         private Point? _selectedTile;
         private List<Point> _playerPath;
         private List<Point> _aiPath;
+        private Point? _playerPathStart;
+        private Point? _aiPathStart;
         private bool _moving;
         private float _spinnerRotation;
 
@@ -268,6 +270,7 @@ namespace TheatreGame
                     {
                         _selectedTile = _hoveredTile;
                         _playerPath = path;
+                        _playerPathStart = player.BoardPos;
                     }
                 }
             }
@@ -305,6 +308,8 @@ namespace TheatreGame
                     _moving = false;
                     _playerPath = null;
                     _aiPath = null;
+                    _playerPathStart = null;
+                    _aiPathStart = null;
                     _selectedTile = null;
                     _turn++;
                 }
@@ -370,12 +375,14 @@ namespace TheatreGame
             if (_playerPath != null)
             {
                 var player = _characters.Find(c => c.IsPlayer);
-                DrawPath(player.BoardPos, _playerPath, Color.LimeGreen);
+                Point start = _moving && _playerPathStart.HasValue ? _playerPathStart.Value : player.BoardPos;
+                DrawPath(start, _playerPath, Color.LimeGreen);
             }
-            if (_moving && _aiPath != null)
+            if (_aiPath != null && (_moving || _aiPathStart.HasValue))
             {
                 var ai = _characters.Find(c => !c.IsPlayer);
-                DrawPath(ai.BoardPos, _aiPath, Color.Orange);
+                Point start = _moving && _aiPathStart.HasValue ? _aiPathStart.Value : ai.BoardPos;
+                DrawPath(start, _aiPath, Color.Orange);
             }
             DrawCampfire();
             DrawCharacters();
@@ -515,8 +522,8 @@ namespace TheatreGame
                 return null;
             float distance = -nearPoint.Y / direction.Y;
             Vector3 world = nearPoint + direction * distance;
-            int x = (int)Math.Floor(world.X / CellSize + 3.5f);
-            int y = (int)Math.Floor(world.Z / CellSize + 3.5f);
+            int x = (int)Math.Floor(world.X / CellSize + 4f);
+            int y = (int)Math.Floor(world.Z / CellSize + 4f);
             if (x < 0 || x > 7 || y < 0 || y > 7)
                 return null;
             return new Point(x, y);
@@ -763,6 +770,8 @@ namespace TheatreGame
             {
                 foreach (var step in _playerPath)
                     player.Path.Enqueue(step);
+                if (!_playerPathStart.HasValue)
+                    _playerPathStart = player.BoardPos;
             }
 
             Point aiDest;
@@ -777,6 +786,7 @@ namespace TheatreGame
                 ai.Path.Enqueue(step);
 
             _aiPath = aiPath;
+            _aiPathStart = ai.BoardPos;
 
             for (int i = 0; i < _characters.Count; i++)
             {
