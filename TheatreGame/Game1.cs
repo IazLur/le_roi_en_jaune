@@ -539,7 +539,7 @@ namespace TheatreGame
             _spriteBatch.DrawString(_font, buttonText, btnPos, Color.White);
 
             float marginX = 20f;
-            float lineHeight = _font.LineSpacing;
+            float lineHeight = _font.LineHeight;
             float vertSpace = (ToolbarHeight - 3 * lineHeight) / 4f;
             float startY = _graphics.PreferredBackBufferHeight - ToolbarHeight + vertSpace;
             _spriteBatch.DrawString(_font, $"Entities: {_characters.Count}", new Vector2(marginX, startY), Color.White);
