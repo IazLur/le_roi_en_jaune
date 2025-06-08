@@ -280,11 +280,15 @@ namespace TheatreGame
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             var keyboard = Keyboard.GetState();
+            Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
+            Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.Up, direction));
+            Vector3 forward = Vector3.Normalize(Vector3.Cross(direction, right));
+
             Vector3 move = Vector3.Zero;
-            if (keyboard.IsKeyDown(Keys.Left)) move.X -= 1f;
-            if (keyboard.IsKeyDown(Keys.Right)) move.X += 1f;
-            if (keyboard.IsKeyDown(Keys.Up)) move.Z -= 1f;
-            if (keyboard.IsKeyDown(Keys.Down)) move.Z += 1f;
+            if (keyboard.IsKeyDown(Keys.Left)) move -= right;
+            if (keyboard.IsKeyDown(Keys.Right)) move += right;
+            if (keyboard.IsKeyDown(Keys.Up)) move += forward;
+            if (keyboard.IsKeyDown(Keys.Down)) move -= forward;
             if (move != Vector3.Zero)
             {
                 move *= CameraMoveSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -299,8 +303,9 @@ namespace TheatreGame
                 float dragFactor = 0.1f;
                 int dx = mouse.X - _prevMouseState.X;
                 int dy = mouse.Y - _prevMouseState.Y;
-                _cameraTarget -= new Vector3(dx * dragFactor, 0f, dy * dragFactor);
-                _cameraPosition -= new Vector3(dx * dragFactor, 0f, dy * dragFactor);
+                Vector3 delta = right * dx * dragFactor + forward * dy * dragFactor;
+                _cameraTarget -= new Vector3(delta.X, 0f, delta.Z);
+                _cameraPosition -= new Vector3(delta.X, 0f, delta.Z);
             }
 
             int scrollDelta = mouse.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
@@ -310,7 +315,7 @@ namespace TheatreGame
                 _cameraDistance = MathHelper.Clamp(_cameraDistance - zoomStep, MinZoom, MaxZoom);
             }
 
-            Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
+            direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
             _cameraPosition = _cameraTarget + direction * _cameraDistance;
             _cameraTarget.X = MathHelper.Clamp(_cameraTarget.X, -CameraMoveLimit, CameraMoveLimit);
             _cameraTarget.Z = MathHelper.Clamp(_cameraTarget.Z, -CameraMoveLimit, CameraMoveLimit);
@@ -724,7 +729,7 @@ namespace TheatreGame
                     float baseScale = 0.5f * _initialCameraDistance / _cameraDistance;
                     float length = MathHelper.Clamp(dist / 100f, 0.5f, 2f);
                     Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
-                    Vector2 pos = c.ScreenPos;
+                    Vector2 pos = c.ScreenPos + new Vector2(0f, baseScale * 2f);
 
                     _spriteBatch.Draw(tex, pos, null, new Color(0, 0, 0, 150), rotation,
                         new Vector2(tex.Width / 2f, tex.Height), scale, SpriteEffects.None, 0f);
