@@ -45,6 +45,8 @@ namespace TheatreGame
 
         private Vector2 _campfireScreenPos;
 
+        private List<Vector3> _lightPositions;
+
         private Texture2D _endTurnButtonTexture;
         private Rectangle _endTurnButtonRect;
         private MouseState _prevMouseState;
@@ -129,10 +131,11 @@ namespace TheatreGame
             _dustParticles = new List<Particle>();
             _fireParticles = new List<Particle>();
             _smokeParticles = new List<Particle>();
+            _lightPositions = new List<Vector3> { Vector3.Zero }; // campfire
             SpawnParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
             SpawnParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
 
-            var screenPoint = GraphicsDevice.Viewport.Project(Vector3.Zero,
+            var screenPoint = GraphicsDevice.Viewport.Project(_lightPositions[0],
                 _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(screenPoint.X, screenPoint.Y);
             SpawnParticlesAt(_fireParticles, 50, new Color(255, 170, 50, 255),
@@ -385,6 +388,7 @@ namespace TheatreGame
                 DrawPath(start, _aiPath, Color.Orange);
             }
             DrawCampfire();
+            DrawShadows();
             DrawCharacters();
             DrawParticles();
 
@@ -617,6 +621,37 @@ namespace TheatreGame
                 var tex = c.Texture ?? _pawnTexture;
                 _spriteBatch.Draw(tex, c.ScreenPos - new Vector2(32, 64),
                     null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
+            }
+            _spriteBatch.End();
+        }
+
+        private void DrawShadows()
+        {
+            _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
+            foreach (var light in _lightPositions)
+            {
+                var screen = GraphicsDevice.Viewport.Project(light,
+                    _projectionMatrix, _viewMatrix, Matrix.Identity);
+                Vector2 lightPos = new Vector2(screen.X, screen.Y);
+
+                foreach (var c in _characters)
+                {
+                    var tex = c.Texture ?? _pawnTexture;
+                    Vector2 dir = c.ScreenPos - lightPos;
+                    float dist = dir.Length();
+                    if (dist < 1f)
+                        dist = 1f;
+                    dir /= dist;
+
+                    float rotation = (float)Math.Atan2(dir.Y, dir.X) - MathHelper.PiOver2;
+                    float baseScale = 0.5f;
+                    float length = MathHelper.Clamp(dist / 100f, 0.5f, 2f);
+                    Vector2 scale = new Vector2(baseScale, baseScale * 0.3f) * length;
+                    Vector2 pos = c.ScreenPos + dir * 2f;
+
+                    _spriteBatch.Draw(tex, pos, null, new Color(0, 0, 0, 150), rotation,
+                        new Vector2(tex.Width / 2f, tex.Height), scale, SpriteEffects.None, 0f);
+                }
             }
             _spriteBatch.End();
         }
