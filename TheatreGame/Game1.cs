@@ -643,10 +643,10 @@ namespace TheatreGame
                         dist = 1f;
                     dir /= dist;
 
-                    float rotation = (float)Math.Atan2(dir.Y, dir.X) - MathHelper.PiOver2;
+                    float rotation = (float)Math.Atan2(dir.Y, dir.X) + MathHelper.PiOver2;
                     float baseScale = 0.5f;
                     float length = MathHelper.Clamp(dist / 100f, 0.5f, 2f);
-                    Vector2 scale = new Vector2(baseScale, baseScale * 0.3f) * length;
+                    Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
                     Vector2 pos = c.ScreenPos + dir * 2f;
 
                     _spriteBatch.Draw(tex, pos, null, new Color(0, 0, 0, 150), rotation,
