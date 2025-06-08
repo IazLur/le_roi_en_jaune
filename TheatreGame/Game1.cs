@@ -490,6 +490,11 @@ namespace TheatreGame
 
         private Vector2 BoardToScreen(Point boardPos)
         {
+            return BoardToScreen(new Vector2(boardPos.X, boardPos.Y));
+        }
+
+        private Vector2 BoardToScreen(Vector2 boardPos)
+        {
             Vector3 world = new Vector3((boardPos.X - 3.5f) * CellSize, 0f,
                 (boardPos.Y - 3.5f) * CellSize);
             var screen = GraphicsDevice.Viewport.Project(world,
@@ -650,10 +655,10 @@ namespace TheatreGame
 
         private void DrawTileBorder(Point tile, Color color)
         {
-            Vector2 tl = BoardToScreen(tile);
-            Vector2 tr = BoardToScreen(new Point(tile.X + 1, tile.Y));
-            Vector2 br = BoardToScreen(new Point(tile.X + 1, tile.Y + 1));
-            Vector2 bl = BoardToScreen(new Point(tile.X, tile.Y + 1));
+            Vector2 tl = BoardToScreen(new Vector2(tile.X - 0.5f, tile.Y - 0.5f));
+            Vector2 tr = BoardToScreen(new Vector2(tile.X + 0.5f, tile.Y - 0.5f));
+            Vector2 br = BoardToScreen(new Vector2(tile.X + 0.5f, tile.Y + 0.5f));
+            Vector2 bl = BoardToScreen(new Vector2(tile.X - 0.5f, tile.Y + 0.5f));
 
             _spriteBatch.Begin();
             DrawLine(tl, tr, color, 2f);
@@ -675,7 +680,7 @@ namespace TheatreGame
                 Color border = ok ? Color.LimeGreen : Color.Red;
 
                 GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                DrawTileQuad((_hoveredTile.Value.X - 3.5f) * CellSize, (_hoveredTile.Value.Y - 3.5f) * CellSize, CellSize, fill);
+                DrawTileQuad((_hoveredTile.Value.X - 4) * CellSize, (_hoveredTile.Value.Y - 4) * CellSize, CellSize, fill);
                 DrawTileBorder(_hoveredTile.Value, border);
                 GraphicsDevice.BlendState = BlendState.Opaque;
             }
@@ -683,7 +688,7 @@ namespace TheatreGame
             if (_selectedTile.HasValue)
             {
                 GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                DrawTileQuad((_selectedTile.Value.X - 3.5f) * CellSize, (_selectedTile.Value.Y - 3.5f) * CellSize, CellSize, new Color(0, 200, 0, 60));
+                DrawTileQuad((_selectedTile.Value.X - 4) * CellSize, (_selectedTile.Value.Y - 4) * CellSize, CellSize, new Color(0, 200, 0, 60));
                 DrawTileBorder(_selectedTile.Value, Color.Green);
                 GraphicsDevice.BlendState = BlendState.Opaque;
             }
