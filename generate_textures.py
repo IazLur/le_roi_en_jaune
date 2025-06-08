@@ -119,3 +119,10 @@ spinner_draw.pieslice([
     spinner_size/2 + outer_r, spinner_size/2 + outer_r
 ], 0, 90, fill=(0, 0, 0, 0))
 save_if_missing(spinner, 'TheatreGame/Content/spinner.png')
+
+# Simple bag icon
+bag = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
+bag_draw = ImageDraw.Draw(bag)
+bag_draw.rectangle([12, 20, 52, 52], fill=(150, 90, 40))
+bag_draw.polygon([(12, 20), (32, 6), (52, 20)], fill=(160, 100, 50))
+save_if_missing(bag, 'TheatreGame/Content/bag.png')

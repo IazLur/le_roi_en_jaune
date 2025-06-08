@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
 using FontStashSharp;
 
 namespace TheatreGame
@@ -54,11 +55,15 @@ namespace TheatreGame
         private const float CameraMoveSpeed = 10f;
 
         private Vector2 _campfireScreenPos;
+        private float _campfireAlpha = 1f;
 
         private List<Vector3> _lightPositions;
 
         private Texture2D _endTurnButtonTexture;
         private Rectangle _endTurnButtonRect;
+        private Texture2D _bagTexture;
+        private Rectangle _bagRect;
+        private Dictionary<Texture2D, Rectangle> _textureBounds = new();
         private MouseState _prevMouseState;
 
         private const int ToolbarHeight = 80;
@@ -73,6 +78,7 @@ namespace TheatreGame
             public float MoveProgress = 0f;
             public Texture2D Texture;
             public bool IsPlayer;
+            public float Visibility = 1f;
         }
 
         private List<Character> _characters = new List<Character>();
@@ -86,6 +92,13 @@ namespace TheatreGame
         private float _spinnerRotation;
 
         private float _initialCameraDistance;
+
+        private bool _inventoryOpen;
+        private bool _menuOpen;
+        private bool _settingsOpen;
+        private bool _prevEscDown;
+        private bool _prevSave;
+        private bool _prevLoad;
 
         private struct Particle
         {
@@ -185,6 +198,11 @@ namespace TheatreGame
                 _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - buttonHeight) / 2,
                 buttonWidth,
                 buttonHeight);
+
+            int bagSize = 48;
+            _bagRect = new Rectangle(20,
+                _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - bagSize) / 2,
+                bagSize, bagSize);
         }
 
         private Texture2D LoadTexture(string fileName)
@@ -203,7 +221,10 @@ namespace TheatreGame
         {
             var texture = Texture2D.FromStream(GraphicsDevice, stream);
             if (texture.Width == 128 && texture.Height == 128)
+            {
+                _textureBounds[texture] = GetTrimmedBounds(texture);
                 return texture;
+            }
 
             // Resize to 128x128 using a temporary render target
             var rt = new RenderTarget2D(GraphicsDevice, 128, 128);
@@ -215,7 +236,34 @@ namespace TheatreGame
             sb.End();
             GraphicsDevice.SetRenderTarget(null);
             texture.Dispose();
+            _textureBounds[rt] = GetTrimmedBounds(rt);
             return rt;
+        }
+
+        private Rectangle GetTrimmedBounds(Texture2D tex)
+        {
+            Color[] data = new Color[tex.Width * tex.Height];
+            tex.GetData(data);
+            int minX = tex.Width, minY = tex.Height, maxX = 0, maxY = 0;
+            bool found = false;
+            for (int y = 0; y < tex.Height; y++)
+            {
+                for (int x = 0; x < tex.Width; x++)
+                {
+                    Color c = data[y * tex.Width + x];
+                    if (c.A > 0)
+                    {
+                        found = true;
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (!found)
+                return new Rectangle(0, 0, tex.Width, tex.Height);
+            return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
         }
 
         protected override void LoadContent()
@@ -246,6 +294,7 @@ namespace TheatreGame
             _lightGradientTexture = LoadTexture("light_gradient.png");
             _endTurnButtonTexture = LoadTexture("end_turn.png");
             _spinnerTexture = LoadTexture("spinner.png");
+            _bagTexture = LoadTexture("bag.png");
 
             for (int i = 0; i < _characters.Count; i++)
             {
@@ -274,12 +323,15 @@ namespace TheatreGame
 
         protected override void Update(GameTime gameTime)
         {
-            if (Keyboard.GetState().IsKeyDown(Keys.Escape))
-                Exit();
-
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             var keyboard = Keyboard.GetState();
+            bool esc = keyboard.IsKeyDown(Keys.Escape);
+            if (esc && !_prevEscDown)
+            {
+                _menuOpen = !_menuOpen;
+            }
+            _prevEscDown = esc;
             Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
             Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.Up, direction));
             Vector3 forward = Vector3.Normalize(Vector3.Cross(direction, right));
@@ -296,16 +348,27 @@ namespace TheatreGame
                 _cameraPosition += new Vector3(move.X, 0f, move.Z);
             }
 
+            if (keyboard.IsKeyDown(Keys.F6) && !_prevSave)
+            {
+                SaveGame("autosave");
+            }
+            if (keyboard.IsKeyDown(Keys.F7) && !_prevLoad)
+            {
+                LoadGame(Path.Combine("saves", "autosave.json"));
+            }
+            _prevSave = keyboard.IsKeyDown(Keys.F6);
+            _prevLoad = keyboard.IsKeyDown(Keys.F7);
+
             var mouse = Mouse.GetState();
             if (mouse.RightButton == ButtonState.Pressed &&
                 _prevMouseState.RightButton == ButtonState.Pressed)
             {
-                float dragFactor = 0.1f;
+                float dragFactor = 0.002f * _cameraDistance;
                 int dx = mouse.X - _prevMouseState.X;
                 int dy = mouse.Y - _prevMouseState.Y;
                 Vector3 delta = right * dx * dragFactor + forward * dy * dragFactor;
-                _cameraTarget -= new Vector3(delta.X, 0f, delta.Z);
-                _cameraPosition -= new Vector3(delta.X, 0f, delta.Z);
+                _cameraTarget += new Vector3(delta.X, 0f, delta.Z);
+                _cameraPosition += new Vector3(delta.X, 0f, delta.Z);
             }
 
             int scrollDelta = mouse.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
@@ -333,6 +396,31 @@ namespace TheatreGame
                 }
 
                 _hoveredTile = ScreenToBoard(mouse.Position);
+
+                if (mouse.LeftButton == ButtonState.Pressed &&
+                    _prevMouseState.LeftButton == ButtonState.Released &&
+                    _bagRect.Contains(mouse.Position))
+                {
+                    _inventoryOpen = !_inventoryOpen;
+                }
+
+                if (_menuOpen)
+                {
+                    Rectangle menuRect = new Rectangle(_graphics.PreferredBackBufferWidth / 2 - 100,
+                        _graphics.PreferredBackBufferHeight / 2 - 80, 200, 160);
+                    Rectangle restartR = new Rectangle(menuRect.X + 10, menuRect.Y + 20, 180, 20);
+                    Rectangle paramR = new Rectangle(menuRect.X + 10, menuRect.Y + 50, 180, 20);
+                    Rectangle quitR = new Rectangle(menuRect.X + 10, menuRect.Y + 80, 180, 20);
+                    if (mouse.LeftButton == ButtonState.Pressed && _prevMouseState.LeftButton == ButtonState.Released)
+                    {
+                        if (restartR.Contains(mouse.Position))
+                            Initialize();
+                        else if (paramR.Contains(mouse.Position))
+                            _settingsOpen = !_settingsOpen;
+                        else if (quitR.Contains(mouse.Position))
+                            Exit();
+                    }
+                }
 
                 if (mouse.LeftButton == ButtonState.Pressed &&
                     _prevMouseState.LeftButton == ButtonState.Released &&
@@ -398,6 +486,18 @@ namespace TheatreGame
                     _characters[i] = c;
                 }
             }
+
+            var playerChar = _characters.Find(ch => ch.IsPlayer);
+            foreach (var c in _characters)
+            {
+                float dist = Math.Abs(c.BoardPos.X - playerChar.BoardPos.X) + Math.Abs(c.BoardPos.Y - playerChar.BoardPos.Y);
+                float target = dist <= 3 ? 1f : 0f;
+                c.Visibility = MathHelper.Lerp(c.Visibility, target, 5f * (float)gameTime.ElapsedGameTime.TotalSeconds);
+            }
+
+            float campDist = Math.Abs(playerChar.BoardPos.X) + Math.Abs(playerChar.BoardPos.Y);
+            _campfireAlpha = MathHelper.Lerp(_campfireAlpha, campDist <= 3 ? 1f : 0f, 5f * (float)gameTime.ElapsedGameTime.TotalSeconds);
+
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
             UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
@@ -454,6 +554,7 @@ namespace TheatreGame
 
             DrawTileLights();
             DrawHighlights();
+            DrawFog();
             if (_playerPath != null)
             {
                 var player = _characters.Find(c => c.IsPlayer);
@@ -570,11 +671,12 @@ namespace TheatreGame
         private void DrawCampfire()
         {
             float flicker = (0.1f + (float)_random.NextDouble() * 0.05f) * 0.2f;
+            float spriteScale = 0.5f * _initialCameraDistance / _cameraDistance;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64),
-                null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
-            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
-                null, Color.White * flicker, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
+            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(_campfireTexture.Width * spriteScale / 2f, _campfireTexture.Height * spriteScale),
+                null, Color.White * _campfireAlpha, 0f, Vector2.Zero, spriteScale, SpriteEffects.None, 0f);
+            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128 * spriteScale, 128 * spriteScale),
+                null, Color.White * flicker * _campfireAlpha, 0f, Vector2.Zero, 2f * spriteScale, SpriteEffects.None, 0f);
             _spriteBatch.End();
         }
 
@@ -702,7 +804,13 @@ namespace TheatreGame
                 Vector2 offset = new Vector2(tex.Width * spriteScale / 2f,
                                              tex.Height * spriteScale);
                 _spriteBatch.Draw(tex, c.ScreenPos - offset,
-                    null, Color.White, 0f, Vector2.Zero, spriteScale, SpriteEffects.None, 0f);
+                    null, Color.White * c.Visibility, 0f, Vector2.Zero, spriteScale, SpriteEffects.None, 0f);
+                if (c.IsPlayer)
+                {
+                    Vector2 nameSize = _font.MeasureString("Player");
+                    Vector2 namePos = c.ScreenPos - offset - new Vector2(nameSize.X / 2f, 20f);
+                    _spriteBatch.DrawString(_font, "Player", namePos, Color.White);
+                }
             }
             _spriteBatch.End();
         }
@@ -719,6 +827,7 @@ namespace TheatreGame
                 foreach (var c in _characters)
                 {
                     var tex = c.Texture ?? _pawnTexture;
+                    Rectangle bounds = _textureBounds.ContainsKey(tex) ? _textureBounds[tex] : new Rectangle(0,0,tex.Width,tex.Height);
                     Vector2 dir = c.ScreenPos - lightPos;
                     float dist = dir.Length();
                     if (dist < 1f)
@@ -731,8 +840,8 @@ namespace TheatreGame
                     Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
                     Vector2 pos = c.ScreenPos + new Vector2(0f, baseScale * 2f);
 
-                    _spriteBatch.Draw(tex, pos, null, new Color(0, 0, 0, 150), rotation,
-                        new Vector2(tex.Width / 2f, tex.Height), scale, SpriteEffects.None, 0f);
+                    _spriteBatch.Draw(tex, pos, bounds, new Color(0, 0, 0, (byte)(150 * c.Visibility)), rotation,
+                        new Vector2(bounds.Width / 2f, bounds.Height), scale, SpriteEffects.None, 0f);
                 }
             }
             _spriteBatch.End();
@@ -820,6 +929,24 @@ namespace TheatreGame
                 DrawTileBorder(_selectedTile.Value, Color.Green);
                 GraphicsDevice.BlendState = BlendState.Opaque;
             }
+        }
+
+        private void DrawFog()
+        {
+            var player = _characters.Find(c => c.IsPlayer);
+            GraphicsDevice.BlendState = BlendState.AlphaBlend;
+            for (int x = 0; x < 8; x++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    float dist = Math.Abs(x - player.BoardPos.X) + Math.Abs(y - player.BoardPos.Y);
+                    if (dist > 3)
+                    {
+                        DrawTileQuad((x - 4) * CellSize, (y - 4) * CellSize, CellSize, new Color(0, 0, 0, 200));
+                    }
+                }
+            }
+            GraphicsDevice.BlendState = BlendState.Opaque;
         }
 
         private void SpawnParticlesAt(List<Particle> list, int count, Color color,
@@ -932,6 +1059,7 @@ namespace TheatreGame
             if (!_moving)
             {
                 _spriteBatch.Draw(_endTurnButtonTexture, _endTurnButtonRect, Color.White);
+                _spriteBatch.Draw(_bagTexture, _bagRect, Color.White);
 
                 string buttonText = "End Turn";
                 Vector2 btnSize = _font.MeasureString(buttonText);
@@ -952,6 +1080,36 @@ namespace TheatreGame
             _spriteBatch.DrawString(_font, $"Map: {MapName}", new Vector2(marginX, startY), Color.White);
             _spriteBatch.End();
 
+            if (_inventoryOpen)
+            {
+                Rectangle invRect = new Rectangle(_graphics.PreferredBackBufferWidth / 2 - 192,
+                    _graphics.PreferredBackBufferHeight / 2 - 96, 384, 192);
+                _spriteBatch.Begin();
+                _spriteBatch.Draw(_particleTexture, invRect, Color.Black * 0.8f);
+                for (int x = 0; x < 6; x++)
+                {
+                    for (int y = 0; y < 2; y++)
+                    {
+                        Rectangle slot = new Rectangle(invRect.X + 8 + x * 60,
+                            invRect.Y + 8 + y * 60, 56, 56);
+                        _spriteBatch.Draw(_particleTexture, slot, Color.Gray * 0.4f);
+                    }
+                }
+                _spriteBatch.End();
+            }
+
+            if (_menuOpen)
+            {
+                Rectangle menuRect = new Rectangle(_graphics.PreferredBackBufferWidth / 2 - 100,
+                    _graphics.PreferredBackBufferHeight / 2 - 80, 200, 160);
+                _spriteBatch.Begin();
+                _spriteBatch.Draw(_particleTexture, menuRect, Color.Black * 0.8f);
+                _spriteBatch.DrawString(_font, "Relancer", new Vector2(menuRect.X + 20, menuRect.Y + 20), Color.White);
+                _spriteBatch.DrawString(_font, "Parametres", new Vector2(menuRect.X + 20, menuRect.Y + 50), Color.White);
+                _spriteBatch.DrawString(_font, "Quitter", new Vector2(menuRect.X + 20, menuRect.Y + 80), Color.White);
+                _spriteBatch.End();
+            }
+
             if (_moving)
             {
                 Vector2 center = new Vector2(_graphics.PreferredBackBufferWidth / 2f, _graphics.PreferredBackBufferHeight / 2f);
@@ -960,6 +1118,39 @@ namespace TheatreGame
                     new Vector2(_spinnerTexture.Width / 2f, _spinnerTexture.Height / 2f), 1f, SpriteEffects.None, 0f);
                 _spriteBatch.End();
             }
+        }
+
+        private class SaveData
+        {
+            public Point Player;
+            public Point AI;
+            public int Turn;
+        }
+
+        private void SaveGame(string name)
+        {
+            var data = new SaveData
+            {
+                Player = _characters.Find(c => c.IsPlayer).BoardPos,
+                AI = _characters.Find(c => !c.IsPlayer).BoardPos,
+                Turn = _turn
+            };
+            Directory.CreateDirectory("saves");
+            string path = Path.Combine("saves", name + ".json");
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(data));
+        }
+
+        private void LoadGame(string path)
+        {
+            if (!File.Exists(path)) return;
+            var data = System.Text.Json.JsonSerializer.Deserialize<SaveData>(File.ReadAllText(path));
+            var player = _characters.Find(c => c.IsPlayer);
+            var ai = _characters.Find(c => !c.IsPlayer);
+            player.BoardPos = data.Player;
+            ai.BoardPos = data.AI;
+            _turn = data.Turn;
+            _characters[0] = player;
+            _characters[1] = ai;
         }
     }
 }
