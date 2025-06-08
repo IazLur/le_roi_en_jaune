@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using FontStashSharp;
 
 namespace TheatreGame
@@ -181,6 +182,18 @@ namespace TheatreGame
                 buttonHeight);
         }
 
+        private Texture2D LoadTexture(string fileName)
+        {
+            string finalPath = Path.Combine("ContentFinal", fileName);
+            if (File.Exists(finalPath))
+            {
+                using var stream = TitleContainer.OpenStream(finalPath);
+                return Texture2D.FromStream(GraphicsDevice, stream);
+            }
+            using var fallback = TitleContainer.OpenStream(Path.Combine("Content", fileName));
+            return Texture2D.FromStream(GraphicsDevice, fallback);
+        }
+
         protected override void LoadContent()
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
@@ -198,35 +211,17 @@ namespace TheatreGame
             // simple prototype we generate the PNG textures at runtime and
             // load them directly from disk instead of using the content
             // pipeline.
-            _floorTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/stage_floor.png"));
-            _curtainTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/curtain.png"));
-            _gridTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/grid_overlay.png"));
+            _floorTexture = LoadTexture("stage_floor.png");
+            _curtainTexture = LoadTexture("curtain.png");
+            _gridTexture = LoadTexture("grid_overlay.png");
 
-            _campfireTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/campfire.png"));
+            _campfireTexture = LoadTexture("campfire.png");
 
-            _pawnTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/pawn.png"));
-            _bishopTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/bishop.png"));
-            _lightGradientTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/light_gradient.png"));
-            _endTurnButtonTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/end_turn.png"));
-            _spinnerTexture = Texture2D.FromStream(
-                GraphicsDevice,
-                TitleContainer.OpenStream("Content/spinner.png"));
+            _pawnTexture = LoadTexture("pawn.png");
+            _bishopTexture = LoadTexture("bishop.png");
+            _lightGradientTexture = LoadTexture("light_gradient.png");
+            _endTurnButtonTexture = LoadTexture("end_turn.png");
+            _spinnerTexture = LoadTexture("spinner.png");
 
             for (int i = 0; i < _characters.Count; i++)
             {

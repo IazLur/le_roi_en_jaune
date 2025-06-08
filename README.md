@@ -33,3 +33,4 @@ Prototype de jeu 3D isométrique utilisant MonoGame.
 - Fenêtre : 1280x720
 - Caméra : perspective isométrique simple
 - Les textures de la scène sont générées avec `generate_textures.py` ou, pour un rendu pixel art via l'IA, avec `generate_ai_textures.py`.
+- Si une texture est présente dans `TheatreGame/ContentFinal`, elle est utilisée en priorité par rapport à celle de `TheatreGame/Content`.
