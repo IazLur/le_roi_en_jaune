@@ -1,3 +1,5 @@
+"""Generate pixel-art textures using Stable Diffusion."""
+
 import os
 from PIL import Image
 
@@ -8,14 +10,28 @@ except ImportError:
     raise SystemExit("Please install torch and diffusers: pip install --user torch diffusers transformers")
 
 
-def generate_with_prompt(pipe, prompt: str, path: str, size=(512, 512)):
-    """Generate an image at ``path`` using ``prompt`` if the file is missing."""
+def generate_with_prompt(pipe, prompt: str, path: str, size=(64, 64), *, transparent=False):
+    """Generate an image at ``path`` using ``prompt`` if missing.
+
+    The output is resized with ``Image.NEAREST`` to preserve crisp pixel-art
+    edges. If ``transparent`` is ``True``, the function makes the background
+    color transparent using the color of the top-left pixel as reference.
+    """
     if os.path.exists(path):
         return
+
     image = pipe(prompt).images[0]
-    # Pillow removed ``Image.ANTIALIAS`` in version 10; ``Image.LANCZOS`` is the
-    # recommended replacement and is compatible with older versions too.
-    image = image.resize(size, Image.LANCZOS)
+    image = image.resize(size, Image.NEAREST)
+    image = image.convert("RGBA")
+
+    if transparent:
+        bg_color = image.getpixel((0, 0))[:3]
+        pixels = [
+            (*px[:3], 0) if px[:3] == bg_color else px
+            for px in image.getdata()
+        ]
+        image.putdata(pixels)
+
     image.save(path)
 
 
@@ -25,18 +41,28 @@ def main():
     pipe = StableDiffusionPipeline.from_pretrained('runwayml/stable-diffusion-v1-5')
     pipe = pipe.to(device)
 
-    generate_with_prompt(pipe,
-                        'top down view wooden floor texture for a small stage',
-                        'TheatreGame/Content/stage_floor_hd.png')
-    generate_with_prompt(pipe,
-                        'theatrical red curtain texture, folds and shadows',
-                        'TheatreGame/Content/curtain_hd.png')
-    generate_with_prompt(pipe,
-                        'glowing campfire with visible logs, isolated on transparent background',
-                        'TheatreGame/Content/campfire_hd.png')
-    generate_with_prompt(pipe,
-                        'simple wooden pawn game piece on transparent background',
-                        'TheatreGame/Content/pawn_hd.png')
+    generate_with_prompt(
+        pipe,
+        'top down wooden floor texture, pixel art style',
+        'TheatreGame/Content/stage_floor_ai.png'
+    )
+    generate_with_prompt(
+        pipe,
+        'red theatrical curtain, pixel art texture',
+        'TheatreGame/Content/curtain_ai.png'
+    )
+    generate_with_prompt(
+        pipe,
+        'campfire sprite, pixel art, transparent background',
+        'TheatreGame/Content/campfire_ai.png',
+        transparent=True
+    )
+    generate_with_prompt(
+        pipe,
+        'simple wooden pawn, pixel art, transparent background',
+        'TheatreGame/Content/pawn_ai.png',
+        transparent=True
+    )
 
 
 if __name__ == '__main__':
