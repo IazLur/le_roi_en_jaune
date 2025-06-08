@@ -43,6 +43,15 @@ namespace TheatreGame
         private Random _random;
         private float _time;
 
+        private Vector3 _cameraTarget;
+        private Vector3 _cameraPosition;
+        private float _cameraDistance;
+
+        private const float MinZoom = 15f;
+        private const float MaxZoom = 50f;
+        private const float CameraMoveLimit = 30f;
+        private const float CameraMoveSpeed = 10f;
+
         private Vector2 _campfireScreenPos;
 
         private Texture2D _endTurnButtonTexture;
@@ -97,10 +106,11 @@ namespace TheatreGame
             base.Initialize();
 
             // Set up isometric camera
-            var cameraPosition = new Vector3(20, 20, 20);
-            var target = Vector3.Zero;
+            _cameraTarget = Vector3.Zero;
+            _cameraPosition = new Vector3(20, 20, 20);
+            _cameraDistance = (_cameraPosition - _cameraTarget).Length();
             var up = Vector3.Up;
-            _viewMatrix = Matrix.CreateLookAt(cameraPosition, target, up);
+            _viewMatrix = Matrix.CreateLookAt(_cameraPosition, _cameraTarget, up);
             _projectionMatrix = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f),
                 GraphicsDevice.Viewport.AspectRatio, 0.1f, 100f);
 
@@ -247,7 +257,45 @@ namespace TheatreGame
 
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            var keyboard = Keyboard.GetState();
+            Vector3 move = Vector3.Zero;
+            if (keyboard.IsKeyDown(Keys.Left)) move.X -= 1f;
+            if (keyboard.IsKeyDown(Keys.Right)) move.X += 1f;
+            if (keyboard.IsKeyDown(Keys.Up)) move.Z -= 1f;
+            if (keyboard.IsKeyDown(Keys.Down)) move.Z += 1f;
+            if (move != Vector3.Zero)
+            {
+                move *= CameraMoveSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                _cameraTarget += new Vector3(move.X, 0f, move.Z);
+                _cameraPosition += new Vector3(move.X, 0f, move.Z);
+            }
+
             var mouse = Mouse.GetState();
+            if (mouse.RightButton == ButtonState.Pressed &&
+                _prevMouseState.RightButton == ButtonState.Pressed)
+            {
+                float dragFactor = 0.1f;
+                int dx = mouse.X - _prevMouseState.X;
+                int dy = mouse.Y - _prevMouseState.Y;
+                _cameraTarget -= new Vector3(dx * dragFactor, 0f, dy * dragFactor);
+                _cameraPosition -= new Vector3(dx * dragFactor, 0f, dy * dragFactor);
+            }
+
+            int scrollDelta = mouse.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
+            if (scrollDelta != 0)
+            {
+                float zoomStep = scrollDelta / 120f * 2f;
+                _cameraDistance = MathHelper.Clamp(_cameraDistance - zoomStep, MinZoom, MaxZoom);
+            }
+
+            Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
+            _cameraPosition = _cameraTarget + direction * _cameraDistance;
+            _cameraTarget.X = MathHelper.Clamp(_cameraTarget.X, -CameraMoveLimit, CameraMoveLimit);
+            _cameraTarget.Z = MathHelper.Clamp(_cameraTarget.Z, -CameraMoveLimit, CameraMoveLimit);
+            _cameraPosition = _cameraTarget + direction * _cameraDistance;
+            _viewMatrix = Matrix.CreateLookAt(_cameraPosition, _cameraTarget, Vector3.Up);
+            var campfireScreen = GraphicsDevice.Viewport.Project(Vector3.Zero, _projectionMatrix, _viewMatrix, Matrix.Identity);
+            _campfireScreenPos = new Vector2(campfireScreen.X, campfireScreen.Y);
             if (!_moving)
             {
                 if (mouse.LeftButton == ButtonState.Pressed &&
@@ -345,6 +393,10 @@ namespace TheatreGame
             _effect.View = _viewMatrix;
             _effect.Projection = _projectionMatrix;
             _effect.World = Matrix.Identity;
+            _effect.FogEnabled = true;
+            _effect.FogColor = Vector3.Zero;
+            _effect.FogStart = 30f;
+            _effect.FogEnd = 80f;
             _effect.Texture = _floorTexture;
 
             foreach (var pass in _effect.CurrentTechnique.Passes)
@@ -629,6 +681,10 @@ namespace TheatreGame
             _colorEffect.View = _viewMatrix;
             _colorEffect.Projection = _projectionMatrix;
             _colorEffect.World = Matrix.Identity;
+            _colorEffect.FogEnabled = true;
+            _colorEffect.FogColor = Vector3.Zero;
+            _colorEffect.FogStart = 30f;
+            _colorEffect.FogEnd = 80f;
 
             GraphicsDevice.BlendState = BlendState.Additive;
             for (int x = -range; x <= range - 1; x++)
