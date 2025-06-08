@@ -648,6 +648,21 @@ namespace TheatreGame
             }
         }
 
+        private void DrawTileBorder(Point tile, Color color)
+        {
+            Vector2 tl = BoardToScreen(tile);
+            Vector2 tr = BoardToScreen(new Point(tile.X + 1, tile.Y));
+            Vector2 br = BoardToScreen(new Point(tile.X + 1, tile.Y + 1));
+            Vector2 bl = BoardToScreen(new Point(tile.X, tile.Y + 1));
+
+            _spriteBatch.Begin();
+            DrawLine(tl, tr, color, 2f);
+            DrawLine(tr, br, color, 2f);
+            DrawLine(br, bl, color, 2f);
+            DrawLine(bl, tl, color, 2f);
+            _spriteBatch.End();
+        }
+
         private void DrawHighlights()
         {
             if (_hoveredTile.HasValue && !_moving)
@@ -656,13 +671,21 @@ namespace TheatreGame
                 bool[,] occ = GetOccupied();
                 var path = FindPath(player.BoardPos, _hoveredTile.Value, occ);
                 bool ok = path != null && path.Count <= 8 && !occ[_hoveredTile.Value.X, _hoveredTile.Value.Y];
-                Color color = ok ? new Color(0, 255, 0, 100) : new Color(255, 0, 0, 100);
-                DrawTileQuad((_hoveredTile.Value.X - 3.5f) * CellSize, (_hoveredTile.Value.Y - 3.5f) * CellSize, CellSize, color);
+                Color fill = ok ? new Color(0, 255, 0, 40) : new Color(255, 0, 0, 40);
+                Color border = ok ? Color.LimeGreen : Color.Red;
+
+                GraphicsDevice.BlendState = BlendState.AlphaBlend;
+                DrawTileQuad((_hoveredTile.Value.X - 3.5f) * CellSize, (_hoveredTile.Value.Y - 3.5f) * CellSize, CellSize, fill);
+                DrawTileBorder(_hoveredTile.Value, border);
+                GraphicsDevice.BlendState = BlendState.Opaque;
             }
+
             if (_selectedTile.HasValue)
             {
-                Color color = new Color(0, 200, 0, 120);
-                DrawTileQuad((_selectedTile.Value.X - 3.5f) * CellSize, (_selectedTile.Value.Y - 3.5f) * CellSize, CellSize, color);
+                GraphicsDevice.BlendState = BlendState.AlphaBlend;
+                DrawTileQuad((_selectedTile.Value.X - 3.5f) * CellSize, (_selectedTile.Value.Y - 3.5f) * CellSize, CellSize, new Color(0, 200, 0, 60));
+                DrawTileBorder(_selectedTile.Value, Color.Green);
+                GraphicsDevice.BlendState = BlendState.Opaque;
             }
         }
 
@@ -760,6 +783,7 @@ namespace TheatreGame
 
             _moving = true;
             _spinnerRotation = 0f;
+            _hoveredTile = null;
         }
 
         private void DrawUI()
@@ -769,14 +793,17 @@ namespace TheatreGame
                 _graphics.PreferredBackBufferWidth, ToolbarHeight);
             _spriteBatch.Begin();
             _spriteBatch.Draw(_particleTexture, bar, Color.Black * 0.5f);
-            _spriteBatch.Draw(_endTurnButtonTexture, _endTurnButtonRect, Color.White);
+            if (!_moving)
+            {
+                _spriteBatch.Draw(_endTurnButtonTexture, _endTurnButtonRect, Color.White);
 
-            string buttonText = "End Turn";
-            Vector2 btnSize = _font.MeasureString(buttonText);
-            Vector2 btnPos = new Vector2(
-                _endTurnButtonRect.Center.X - btnSize.X / 2f,
-                _endTurnButtonRect.Center.Y - btnSize.Y / 2f);
-            _spriteBatch.DrawString(_font, buttonText, btnPos, Color.White);
+                string buttonText = "End Turn";
+                Vector2 btnSize = _font.MeasureString(buttonText);
+                Vector2 btnPos = new Vector2(
+                    _endTurnButtonRect.Center.X - btnSize.X / 2f,
+                    _endTurnButtonRect.Center.Y - btnSize.Y / 2f);
+                _spriteBatch.DrawString(_font, buttonText, btnPos, Color.White);
+            }
 
             float marginX = 20f;
             float lineHeight = _font.LineHeight;
