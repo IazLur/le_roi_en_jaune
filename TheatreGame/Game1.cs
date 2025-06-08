@@ -896,7 +896,7 @@ namespace TheatreGame
                     Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
                     Vector2 pos = c.ScreenPos + new Vector2(0f, baseScale * 2f);
 
-                    _spriteBatch.Draw(tex, pos, bounds, new Color(0, 0, 0, (byte)(150 * c.Visibility)), rotation,
+                    _spriteBatch.Draw(tex, pos, bounds, new Color(0, 0, 0, (int)(150 * c.Visibility)), rotation,
                         new Vector2(bounds.Width / 2f, bounds.Height), scale, SpriteEffects.None, 0f);
                 }
             }
@@ -999,7 +999,7 @@ namespace TheatreGame
                     float alpha = MathHelper.Clamp((dist - 3f), 0f, 1f);
                     if (alpha > 0f)
                     {
-                        DrawTileQuad((x - 4) * CellSize, (y - 4) * CellSize, CellSize, new Color(0, 0, 0, (byte)(alpha * 200)));
+                        DrawTileQuad((x - 4) * CellSize, (y - 4) * CellSize, CellSize, new Color(0, 0, 0, (int)(alpha * 200)));
                     }
                 }
             }
