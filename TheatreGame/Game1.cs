@@ -96,9 +96,24 @@ namespace TheatreGame
         private bool _inventoryOpen;
         private bool _menuOpen;
         private bool _settingsOpen;
+        private bool _saveOpen;
+        private bool _loadOpen;
         private bool _prevEscDown;
         private bool _prevSave;
         private bool _prevLoad;
+        private string _saveInput = string.Empty;
+        private List<string> _saveFiles = new();
+        private int _loadScroll;
+
+        private enum DraggedPanel { None, Menu, Inventory, Save, Load }
+        private DraggedPanel _dragging = DraggedPanel.None;
+        private Point _dragOffset;
+        private Vector2 _menuPos;
+        private Vector2 _inventoryPos;
+        private Vector2 _savePos;
+        private Vector2 _loadPos;
+        private Vector2 _settingsPos;
+        private bool _fullscreen;
 
         private struct Particle
         {
@@ -191,18 +206,20 @@ namespace TheatreGame
                 IsPlayer = false
             });
 
-            int buttonWidth = 140;
-            int buttonHeight = 40;
-            _endTurnButtonRect = new Rectangle(
-                _graphics.PreferredBackBufferWidth - buttonWidth - 20,
-                _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - buttonHeight) / 2,
-                buttonWidth,
-                buttonHeight);
+            UpdateUILayout();
 
-            int bagSize = 48;
-            _bagRect = new Rectangle(20,
-                _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - bagSize) / 2,
-                bagSize, bagSize);
+            _menuPos = new Vector2(_graphics.PreferredBackBufferWidth / 2 - 100,
+                _graphics.PreferredBackBufferHeight / 2 - 80);
+            _inventoryPos = new Vector2(_graphics.PreferredBackBufferWidth / 2 - 192,
+                _graphics.PreferredBackBufferHeight / 2 - 96);
+            _savePos = new Vector2(_graphics.PreferredBackBufferWidth / 2 - 150,
+                _graphics.PreferredBackBufferHeight / 2 - 60);
+            _loadPos = new Vector2(_graphics.PreferredBackBufferWidth / 2 - 150,
+                _graphics.PreferredBackBufferHeight / 2 - 120);
+            _settingsPos = new Vector2(_graphics.PreferredBackBufferWidth / 2 - 150,
+                _graphics.PreferredBackBufferHeight / 2 - 60);
+
+            Window.TextInput += OnTextInput;
         }
 
         private Texture2D LoadTexture(string fileName)
@@ -329,7 +346,16 @@ namespace TheatreGame
             bool esc = keyboard.IsKeyDown(Keys.Escape);
             if (esc && !_prevEscDown)
             {
-                _menuOpen = !_menuOpen;
+                if (_menuOpen || _inventoryOpen || _saveOpen || _loadOpen || _settingsOpen)
+                {
+                    _menuOpen = false;
+                    _inventoryOpen = false;
+                    _saveOpen = false;
+                    _loadOpen = false;
+                    _settingsOpen = false;
+                }
+                else
+                    _menuOpen = true;
             }
             _prevEscDown = esc;
             Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
@@ -337,10 +363,13 @@ namespace TheatreGame
             Vector3 forward = Vector3.Normalize(Vector3.Cross(direction, right));
 
             Vector3 move = Vector3.Zero;
-            if (keyboard.IsKeyDown(Keys.Left)) move -= right;
-            if (keyboard.IsKeyDown(Keys.Right)) move += right;
-            if (keyboard.IsKeyDown(Keys.Up)) move += forward;
-            if (keyboard.IsKeyDown(Keys.Down)) move -= forward;
+            if (!_menuOpen && !_inventoryOpen && !_saveOpen && !_loadOpen && !_settingsOpen)
+            {
+                if (keyboard.IsKeyDown(Keys.Left)) move -= right;
+                if (keyboard.IsKeyDown(Keys.Right)) move += right;
+                if (keyboard.IsKeyDown(Keys.Up)) move += forward;
+                if (keyboard.IsKeyDown(Keys.Down)) move -= forward;
+            }
             if (move != Vector3.Zero)
             {
                 move *= CameraMoveSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -361,7 +390,8 @@ namespace TheatreGame
 
             var mouse = Mouse.GetState();
             if (mouse.RightButton == ButtonState.Pressed &&
-                _prevMouseState.RightButton == ButtonState.Pressed)
+                _prevMouseState.RightButton == ButtonState.Pressed &&
+                !_menuOpen && !_inventoryOpen && !_saveOpen && !_loadOpen && !_settingsOpen)
             {
                 float dragFactor = 0.002f * _cameraDistance;
                 int dx = mouse.X - _prevMouseState.X;
@@ -395,11 +425,13 @@ namespace TheatreGame
                     EndTurn();
                 }
 
-                _hoveredTile = ScreenToBoard(mouse.Position);
+                if (!_menuOpen && !_inventoryOpen && !_saveOpen && !_loadOpen && !_settingsOpen)
+                    _hoveredTile = ScreenToBoard(mouse.Position);
 
                 if (mouse.LeftButton == ButtonState.Pressed &&
                     _prevMouseState.LeftButton == ButtonState.Released &&
-                    _bagRect.Contains(mouse.Position))
+                    _bagRect.Contains(mouse.Position) &&
+                    !_menuOpen && !_saveOpen && !_loadOpen && !_settingsOpen)
                 {
                     _inventoryOpen = !_inventoryOpen;
                 }
@@ -424,7 +456,8 @@ namespace TheatreGame
 
                 if (mouse.LeftButton == ButtonState.Pressed &&
                     _prevMouseState.LeftButton == ButtonState.Released &&
-                    !_endTurnButtonRect.Contains(mouse.Position) && _hoveredTile.HasValue)
+                    !_endTurnButtonRect.Contains(mouse.Position) && _hoveredTile.HasValue &&
+                    !_menuOpen && !_inventoryOpen && !_saveOpen && !_loadOpen && !_settingsOpen)
                 {
                     var player = _characters.Find(c => c.IsPlayer);
                     bool[,] occ = GetOccupied();
@@ -437,6 +470,17 @@ namespace TheatreGame
                     }
                 }
             }
+            if (mouse.LeftButton == ButtonState.Pressed && _dragging != DraggedPanel.None)
+            {
+                Point p = mouse.Position - _dragOffset;
+                if (_dragging == DraggedPanel.Menu) _menuPos = p.ToVector2();
+                else if (_dragging == DraggedPanel.Inventory) _inventoryPos = p.ToVector2();
+                else if (_dragging == DraggedPanel.Save) _savePos = p.ToVector2();
+                else if (_dragging == DraggedPanel.Load) _loadPos = p.ToVector2();
+            }
+            if (mouse.LeftButton == ButtonState.Released)
+                _dragging = DraggedPanel.None;
+
             _prevMouseState = mouse;
 
             if (_moving)
@@ -491,12 +535,13 @@ namespace TheatreGame
             foreach (var c in _characters)
             {
                 float dist = Math.Abs(c.BoardPos.X - playerChar.BoardPos.X) + Math.Abs(c.BoardPos.Y - playerChar.BoardPos.Y);
-                float target = dist <= 3 ? 1f : 0f;
+                float target = MathHelper.Clamp(1f - (dist - 3f), 0f, 1f);
                 c.Visibility = MathHelper.Lerp(c.Visibility, target, 5f * (float)gameTime.ElapsedGameTime.TotalSeconds);
             }
 
             float campDist = Math.Abs(playerChar.BoardPos.X) + Math.Abs(playerChar.BoardPos.Y);
-            _campfireAlpha = MathHelper.Lerp(_campfireAlpha, campDist <= 3 ? 1f : 0f, 5f * (float)gameTime.ElapsedGameTime.TotalSeconds);
+            float campTarget = MathHelper.Clamp(1f - (campDist - 3f), 0f, 1f);
+            _campfireAlpha = MathHelper.Lerp(_campfireAlpha, campTarget, 5f * (float)gameTime.ElapsedGameTime.TotalSeconds);
 
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
@@ -722,6 +767,16 @@ namespace TheatreGame
                 new Vector2(edge.Length(), thickness), SpriteEffects.None, 0f);
         }
 
+        private void DrawPanel(Rectangle rect)
+        {
+            _spriteBatch.Draw(_particleTexture, rect, Color.Black * 0.8f);
+            int t = 2;
+            _spriteBatch.Draw(_particleTexture, new Rectangle(rect.X, rect.Y, rect.Width, t), Color.Gray);
+            _spriteBatch.Draw(_particleTexture, new Rectangle(rect.X, rect.Bottom - t, rect.Width, t), Color.Gray);
+            _spriteBatch.Draw(_particleTexture, new Rectangle(rect.X, rect.Y, t, rect.Height), Color.Gray);
+            _spriteBatch.Draw(_particleTexture, new Rectangle(rect.Right - t, rect.Y, t, rect.Height), Color.Gray);
+        }
+
         private void DrawPath(Point start, List<Point> path, Color color)
         {
             if (path == null || path.Count == 0)
@@ -801,14 +856,15 @@ namespace TheatreGame
             foreach (var c in _characters)
             {
                 var tex = c.Texture ?? _pawnTexture;
-                Vector2 offset = new Vector2(tex.Width * spriteScale / 2f,
-                                             tex.Height * spriteScale);
+                Rectangle bounds = _textureBounds.ContainsKey(tex) ? _textureBounds[tex] : new Rectangle(0,0,tex.Width,tex.Height);
+                Vector2 offset = new Vector2(bounds.Width * spriteScale / 2f,
+                                             bounds.Height * spriteScale);
                 _spriteBatch.Draw(tex, c.ScreenPos - offset,
-                    null, Color.White * c.Visibility, 0f, Vector2.Zero, spriteScale, SpriteEffects.None, 0f);
+                    bounds, Color.White * c.Visibility, 0f, new Vector2(bounds.Width/2f,bounds.Height), spriteScale, SpriteEffects.None, 0f);
                 if (c.IsPlayer)
                 {
                     Vector2 nameSize = _font.MeasureString("Player");
-                    Vector2 namePos = c.ScreenPos - offset - new Vector2(nameSize.X / 2f, 20f);
+                    Vector2 namePos = new Vector2(c.ScreenPos.X - nameSize.X/2f, c.ScreenPos.Y - offset.Y - 20f);
                     _spriteBatch.DrawString(_font, "Player", namePos, Color.White);
                 }
             }
@@ -940,9 +996,10 @@ namespace TheatreGame
                 for (int y = 0; y < 8; y++)
                 {
                     float dist = Math.Abs(x - player.BoardPos.X) + Math.Abs(y - player.BoardPos.Y);
-                    if (dist > 3)
+                    float alpha = MathHelper.Clamp((dist - 3f), 0f, 1f);
+                    if (alpha > 0f)
                     {
-                        DrawTileQuad((x - 4) * CellSize, (y - 4) * CellSize, CellSize, new Color(0, 0, 0, 200));
+                        DrawTileQuad((x - 4) * CellSize, (y - 4) * CellSize, CellSize, new Color(0, 0, 0, (byte)(alpha * 200)));
                     }
                 }
             }
@@ -1082,32 +1139,197 @@ namespace TheatreGame
 
             if (_inventoryOpen)
             {
-                Rectangle invRect = new Rectangle(_graphics.PreferredBackBufferWidth / 2 - 192,
-                    _graphics.PreferredBackBufferHeight / 2 - 96, 384, 192);
+                Rectangle invRect = new Rectangle((int)_inventoryPos.X, (int)_inventoryPos.Y, 384, 192);
+                Rectangle closeRect = new Rectangle(invRect.Right - 20, invRect.Y, 20, 20);
                 _spriteBatch.Begin();
-                _spriteBatch.Draw(_particleTexture, invRect, Color.Black * 0.8f);
+                DrawPanel(invRect);
+                _spriteBatch.DrawString(_font, "X", closeRect.Location.ToVector2(), Color.White);
                 for (int x = 0; x < 6; x++)
                 {
                     for (int y = 0; y < 2; y++)
                     {
                         Rectangle slot = new Rectangle(invRect.X + 8 + x * 60,
-                            invRect.Y + 8 + y * 60, 56, 56);
+                            invRect.Y + 30 + y * 60, 56, 56);
                         _spriteBatch.Draw(_particleTexture, slot, Color.Gray * 0.4f);
                     }
                 }
                 _spriteBatch.End();
+
+                if (Mouse.GetState().LeftButton == ButtonState.Pressed && _prevMouseState.LeftButton == ButtonState.Released)
+                {
+                    if (closeRect.Contains(Mouse.GetState().Position))
+                        _inventoryOpen = false;
+                    else if (new Rectangle(invRect.X, invRect.Y, invRect.Width, 20).Contains(Mouse.GetState().Position))
+                    {
+                        _dragging = DraggedPanel.Inventory;
+                        _dragOffset = Mouse.GetState().Position - new Point(invRect.X, invRect.Y);
+                    }
+                }
             }
 
             if (_menuOpen)
             {
-                Rectangle menuRect = new Rectangle(_graphics.PreferredBackBufferWidth / 2 - 100,
-                    _graphics.PreferredBackBufferHeight / 2 - 80, 200, 160);
+                Rectangle menuRect = new Rectangle((int)_menuPos.X, (int)_menuPos.Y, 200, 200);
+                Rectangle closeRect = new Rectangle(menuRect.Right - 20, menuRect.Y, 20, 20);
                 _spriteBatch.Begin();
-                _spriteBatch.Draw(_particleTexture, menuRect, Color.Black * 0.8f);
-                _spriteBatch.DrawString(_font, "Relancer", new Vector2(menuRect.X + 20, menuRect.Y + 20), Color.White);
-                _spriteBatch.DrawString(_font, "Parametres", new Vector2(menuRect.X + 20, menuRect.Y + 50), Color.White);
-                _spriteBatch.DrawString(_font, "Quitter", new Vector2(menuRect.X + 20, menuRect.Y + 80), Color.White);
+                DrawPanel(menuRect);
+                _spriteBatch.DrawString(_font, "X", closeRect.Location.ToVector2(), Color.White);
+                _spriteBatch.DrawString(_font, "Relancer", new Vector2(menuRect.X + 20, menuRect.Y + 30), Color.White);
+                _spriteBatch.DrawString(_font, "Parametres", new Vector2(menuRect.X + 20, menuRect.Y + 60), Color.White);
+                _spriteBatch.DrawString(_font, "Sauvegarder", new Vector2(menuRect.X + 20, menuRect.Y + 90), Color.White);
+                _spriteBatch.DrawString(_font, "Charger", new Vector2(menuRect.X + 20, menuRect.Y + 120), Color.White);
+                _spriteBatch.DrawString(_font, "Quitter", new Vector2(menuRect.X + 20, menuRect.Y + 150), Color.White);
                 _spriteBatch.End();
+
+                if (Mouse.GetState().LeftButton == ButtonState.Pressed && _prevMouseState.LeftButton == ButtonState.Released)
+                {
+                    Point mp = Mouse.GetState().Position;
+                    if (closeRect.Contains(mp))
+                        _menuOpen = false;
+                    else if (new Rectangle(menuRect.X, menuRect.Y, menuRect.Width, 20).Contains(mp))
+                    {
+                        _dragging = DraggedPanel.Menu;
+                        _dragOffset = mp - new Point(menuRect.X, menuRect.Y);
+                    }
+                    else if (new Rectangle(menuRect.X + 20, menuRect.Y + 30, 160, 20).Contains(mp))
+                        Initialize();
+                    else if (new Rectangle(menuRect.X + 20, menuRect.Y + 60, 160, 20).Contains(mp))
+                        _settingsOpen = !_settingsOpen;
+                    else if (new Rectangle(menuRect.X + 20, menuRect.Y + 90, 160, 20).Contains(mp))
+                        {_saveOpen = true; _saveInput = string.Empty; }
+                    else if (new Rectangle(menuRect.X + 20, menuRect.Y + 120, 160, 20).Contains(mp))
+                        { _loadOpen = true; _saveFiles = new List<string>(Directory.Exists("saves") ? Directory.GetFiles("saves", "*.json") : Array.Empty<string>()); _loadScroll = 0; }
+                    else if (new Rectangle(menuRect.X + 20, menuRect.Y + 150, 160, 20).Contains(mp))
+                        Exit();
+                }
+            }
+
+            if (_saveOpen)
+            {
+                Rectangle svRect = new Rectangle((int)_savePos.X, (int)_savePos.Y, 300, 120);
+                Rectangle closeRect = new Rectangle(svRect.Right - 20, svRect.Y, 20, 20);
+                Rectangle btnRect = new Rectangle(svRect.X + 10, svRect.Bottom - 30, 80, 20);
+                _spriteBatch.Begin();
+                DrawPanel(svRect);
+                _spriteBatch.DrawString(_font, "X", closeRect.Location.ToVector2(), Color.White);
+                _spriteBatch.DrawString(_font, "Nom:", new Vector2(svRect.X + 10, svRect.Y + 30), Color.White);
+                _spriteBatch.DrawString(_font, _saveInput, new Vector2(svRect.X + 60, svRect.Y + 30), Color.White);
+                _spriteBatch.Draw(_particleTexture, btnRect, Color.Gray);
+                _spriteBatch.DrawString(_font, "Sauver", new Vector2(btnRect.X + 5, btnRect.Y + 2), Color.White);
+                _spriteBatch.End();
+
+                if (Mouse.GetState().LeftButton == ButtonState.Pressed && _prevMouseState.LeftButton == ButtonState.Released)
+                {
+                    Point mp = Mouse.GetState().Position;
+                    if (closeRect.Contains(mp))
+                        _saveOpen = false;
+                    else if (btnRect.Contains(mp))
+                    {
+                        string name = string.IsNullOrWhiteSpace(_saveInput) ? "save" + DateTime.Now.Ticks : _saveInput;
+                        SaveGame(name);
+                        _saveOpen = false;
+                    }
+                    else if (new Rectangle(svRect.X, svRect.Y, svRect.Width, 20).Contains(mp))
+                    {
+                        _dragging = DraggedPanel.Save;
+                        _dragOffset = mp - new Point(svRect.X, svRect.Y);
+                    }
+                }
+            }
+
+            if (_loadOpen)
+            {
+                Rectangle ldRect = new Rectangle((int)_loadPos.X, (int)_loadPos.Y, 300, 240);
+                Rectangle closeRect = new Rectangle(ldRect.Right - 20, ldRect.Y, 20, 20);
+                _spriteBatch.Begin();
+                DrawPanel(ldRect);
+                _spriteBatch.DrawString(_font, "X", closeRect.Location.ToVector2(), Color.White);
+                int y = ldRect.Y + 30;
+                int index = 0;
+                foreach (var file in _saveFiles)
+                {
+                    if (index >= _loadScroll && index < _loadScroll + 8)
+                    {
+                        string name = Path.GetFileNameWithoutExtension(file);
+                        _spriteBatch.DrawString(_font, name, new Vector2(ldRect.X + 10, y), Color.White);
+                        y += 20;
+                    }
+                    index++;
+                }
+                _spriteBatch.End();
+
+                if (Mouse.GetState().LeftButton == ButtonState.Pressed && _prevMouseState.LeftButton == ButtonState.Released)
+                {
+                    Point mp = Mouse.GetState().Position;
+                    if (closeRect.Contains(mp))
+                        _loadOpen = false;
+                    else if (new Rectangle(ldRect.X, ldRect.Y, ldRect.Width, 20).Contains(mp))
+                    {
+                        _dragging = DraggedPanel.Load;
+                        _dragOffset = mp - new Point(ldRect.X, ldRect.Y);
+                    }
+                    else
+                    {
+                        y = ldRect.Y + 30;
+                        index = 0;
+                        foreach (var file in _saveFiles)
+                        {
+                            if (index >= _loadScroll && index < _loadScroll + 8)
+                            {
+                                Rectangle r = new Rectangle(ldRect.X + 10, y, 200, 20);
+                                if (r.Contains(mp))
+                                {
+                                    LoadGame(file);
+                                    _loadOpen = false;
+                                    _menuOpen = false;
+                                    break;
+                                }
+                                y += 20;
+                            }
+                            index++;
+                        }
+                    }
+                }
+
+                int scroll = Mouse.GetState().ScrollWheelValue - _prevMouseState.ScrollWheelValue;
+                if (scroll != 0)
+                {
+                    int maxScroll = Math.Max(0, _saveFiles.Count - 8);
+                    _loadScroll = Math.Clamp(_loadScroll - scroll / 120, 0, maxScroll);
+                }
+            }
+
+            if (_settingsOpen)
+            {
+                Rectangle stRect = new Rectangle((int)_settingsPos.X, (int)_settingsPos.Y, 300, 120);
+                Rectangle closeRect = new Rectangle(stRect.Right - 20, stRect.Y, 20, 20);
+                Rectangle winBtn = new Rectangle(stRect.X + 20, stRect.Y + 40, 120, 20);
+                Rectangle fsBtn = new Rectangle(stRect.X + 160, stRect.Y + 40, 120, 20);
+                _spriteBatch.Begin();
+                DrawPanel(stRect);
+                _spriteBatch.DrawString(_font, "X", closeRect.Location.ToVector2(), Color.White);
+                _spriteBatch.Draw(_particleTexture, winBtn, _fullscreen ? Color.Gray : Color.White);
+                _spriteBatch.Draw(_particleTexture, fsBtn, _fullscreen ? Color.White : Color.Gray);
+                _spriteBatch.DrawString(_font, "Fenetre", new Vector2(winBtn.X + 10, winBtn.Y + 2), Color.Black);
+                _spriteBatch.DrawString(_font, "Plein", new Vector2(fsBtn.X + 10, fsBtn.Y + 2), Color.Black);
+                _spriteBatch.End();
+
+                if (Mouse.GetState().LeftButton == ButtonState.Pressed && _prevMouseState.LeftButton == ButtonState.Released)
+                {
+                    Point mp = Mouse.GetState().Position;
+                    if (closeRect.Contains(mp))
+                        _settingsOpen = false;
+                    else if (winBtn.Contains(mp))
+                    {
+                        _fullscreen = false;
+                        ApplyResolution(1280, 720, false);
+                    }
+                    else if (fsBtn.Contains(mp))
+                    {
+                        _fullscreen = true;
+                        ApplyResolution(1920, 1080, true);
+                    }
+                }
             }
 
             if (_moving)
@@ -1151,6 +1373,42 @@ namespace TheatreGame
             _turn = data.Turn;
             _characters[0] = player;
             _characters[1] = ai;
+        }
+
+        private void UpdateUILayout()
+        {
+            int buttonWidth = 140;
+            int buttonHeight = 40;
+            _endTurnButtonRect = new Rectangle(
+                _graphics.PreferredBackBufferWidth - buttonWidth - 20,
+                _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - buttonHeight) / 2,
+                buttonWidth,
+                buttonHeight);
+
+            int bagSize = 48;
+            _bagRect = new Rectangle(220,
+                _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - bagSize) / 2,
+                bagSize, bagSize);
+        }
+
+        private void OnTextInput(object sender, TextInputEventArgs e)
+        {
+            if (_saveOpen)
+            {
+                if (e.Key == Keys.Back && _saveInput.Length > 0)
+                    _saveInput = _saveInput[..^1];
+                else if (!char.IsControl(e.Character))
+                    _saveInput += e.Character;
+            }
+        }
+
+        private void ApplyResolution(int w, int h, bool fullscreen)
+        {
+            _graphics.IsFullScreen = fullscreen;
+            _graphics.PreferredBackBufferWidth = w;
+            _graphics.PreferredBackBufferHeight = h;
+            _graphics.ApplyChanges();
+            UpdateUILayout();
         }
     }
 }
