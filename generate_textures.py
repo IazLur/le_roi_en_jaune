@@ -95,3 +95,27 @@ try:
 except Exception:
     pass
 save_if_missing(button, 'TheatreGame/Content/end_turn.png')
+
+# Simple bishop-like piece texture
+bishop = Image.new('RGBA', (128, 128), (0, 0, 0, 0))
+bishop_draw = ImageDraw.Draw(bishop)
+bishop_draw.ellipse([32, 96, 96, 120], fill=(0, 0, 0))
+bishop_draw.polygon([(64, 24), (48, 80), (80, 80)], fill=(0, 0, 0))
+bishop_draw.ellipse([56, 20, 72, 36], fill=(0, 0, 0))
+save_if_missing(bishop, 'TheatreGame/Content/bishop.png')
+
+# Loading spinner texture (ring with a missing quarter)
+spinner_size = 64
+spinner = Image.new('RGBA', (spinner_size, spinner_size), (0, 0, 0, 0))
+spinner_draw = ImageDraw.Draw(spinner)
+outer_r = spinner_size // 2
+inner_r = spinner_size // 2 - 6
+spinner_draw.ellipse([
+    spinner_size/2 - outer_r, spinner_size/2 - outer_r,
+    spinner_size/2 + outer_r, spinner_size/2 + outer_r
+], outline=(200, 200, 200, 255), width=6)
+spinner_draw.pieslice([
+    spinner_size/2 - outer_r, spinner_size/2 - outer_r,
+    spinner_size/2 + outer_r, spinner_size/2 + outer_r
+], 0, 90, fill=(0, 0, 0, 0))
+save_if_missing(spinner, 'TheatreGame/Content/spinner.png')
