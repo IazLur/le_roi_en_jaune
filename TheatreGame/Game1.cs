@@ -82,6 +82,7 @@ namespace TheatreGame
 
         private List<Character> _characters = new List<Character>();
         private bool[,] _fog = new bool[8,8];
+        private readonly Point _campfireTile = new Point(4, 4);
         private Point? _hoveredTile;
         private Point? _selectedTile;
         private List<Point> _playerPath;
@@ -569,22 +570,25 @@ namespace TheatreGame
             }
             _spriteBatch.End();
 
-            _spriteBatch.Begin(blendState: BlendState.Additive);
-            foreach (var p in _fireParticles)
+            if (IsTileVisible(_campfireTile))
             {
-                _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
-            }
-            _spriteBatch.End();
+                _spriteBatch.Begin(blendState: BlendState.Additive);
+                foreach (var p in _fireParticles)
+                {
+                    _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
+                        0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+                }
+                _spriteBatch.End();
 
-            _spriteBatch.Begin();
-            float smokeRatio = GetScaleForWorldPosition(Vector3.Zero, 1f);
-            foreach (var p in _smokeParticles)
-            {
-                _spriteBatch.Draw(_smokeTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale * smokeRatio, SpriteEffects.None, 0f);
+                _spriteBatch.Begin();
+                float smokeRatio = GetScaleForWorldPosition(Vector3.Zero, 1f);
+                foreach (var p in _smokeParticles)
+                {
+                    _spriteBatch.Draw(_smokeTexture, p.Position, null, p.Color,
+                        0f, Vector2.Zero, p.Scale * smokeRatio, SpriteEffects.None, 0f);
+                }
+                _spriteBatch.End();
             }
-            _spriteBatch.End();
         }
 
         private void DrawFog()
@@ -635,6 +639,8 @@ namespace TheatreGame
 
         private void DrawCampfire()
         {
+            if (!IsTileVisible(_campfireTile))
+                return;
             float flicker = (0.1f + (float)_random.NextDouble() * 0.05f) * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             const float baseScale = 0.5f;
@@ -781,6 +787,8 @@ namespace TheatreGame
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             foreach (var c in _characters)
             {
+                if (!IsTileVisible(c.BoardPos))
+                    continue;
                 var tex = c.Texture ?? _pawnTexture;
                 Vector3 world = BoardToWorld(new Vector2(c.BoardPos.X, c.BoardPos.Y));
                 const float baseScale = 0.5f;
@@ -803,6 +811,8 @@ namespace TheatreGame
 
                 foreach (var c in _characters)
                 {
+                    if (!IsTileVisible(c.BoardPos))
+                        continue;
                     var tex = c.Texture ?? _pawnTexture;
                     Vector2 dir = c.ScreenPos - lightPos;
                     float dist = dir.Length();
@@ -1027,6 +1037,13 @@ namespace TheatreGame
                         _fog[x, y] = false;
                 }
             }
+        }
+
+        private bool IsTileVisible(Point tile)
+        {
+            if (tile.X < 0 || tile.X > 7 || tile.Y < 0 || tile.Y > 7)
+                return true;
+            return !_fog[tile.X, tile.Y];
         }
 
         private void EndTurn()
