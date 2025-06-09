@@ -47,6 +47,7 @@ namespace TheatreGame
         private Vector3 _cameraTarget;
         private Vector3 _cameraPosition;
         private float _cameraDistance;
+        private float _initialCameraDistance;
 
         private const float MinZoom = 15f;
         private const float MaxZoom = 50f;
@@ -571,10 +572,13 @@ namespace TheatreGame
         {
             float flicker = (0.1f + (float)_random.NextDouble() * 0.05f) * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64),
-                null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
-            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
-                null, Color.White * flicker, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
+            const float baseScale = 0.5f;
+            float scale = GetScaleForWorldPosition(Vector3.Zero, baseScale);
+            float ratio = scale / baseScale;
+            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64) * ratio,
+                null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128) * ratio,
+                null, Color.White * flicker, 0f, Vector2.Zero, 2f * ratio, SpriteEffects.None, 0f);
             _spriteBatch.End();
         }
 
@@ -590,6 +594,20 @@ namespace TheatreGame
             var screen = GraphicsDevice.Viewport.Project(world,
                 _projectionMatrix, _viewMatrix, Matrix.Identity);
             return new Vector2(screen.X, screen.Y);
+        }
+
+        private Vector3 BoardToWorld(Vector2 boardPos)
+        {
+            return new Vector3((boardPos.X - 3.5f) * CellSize, 0f,
+                (boardPos.Y - 3.5f) * CellSize);
+        }
+
+        private float GetScaleForWorldPosition(Vector3 worldPos, float baseScale)
+        {
+            float distance = Vector3.Distance(_cameraPosition, worldPos);
+            if (distance <= 0.001f)
+                return baseScale;
+            return baseScale * (_initialCameraDistance / distance);
         }
 
         private Point? ScreenToBoard(Point screen)
@@ -699,10 +717,12 @@ namespace TheatreGame
             foreach (var c in _characters)
             {
                 var tex = c.Texture ?? _pawnTexture;
-                Vector2 offset = new Vector2(tex.Width * spriteScale / 2f,
-                                             tex.Height * spriteScale);
-                _spriteBatch.Draw(tex, c.ScreenPos - offset,
-                    null, Color.White, 0f, Vector2.Zero, spriteScale, SpriteEffects.None, 0f);
+                Vector3 world = BoardToWorld(new Vector2(c.BoardPos.X, c.BoardPos.Y));
+                const float baseScale = 0.5f;
+                float scale = GetScaleForWorldPosition(world, baseScale);
+                float ratio = scale / baseScale;
+                _spriteBatch.Draw(tex, c.ScreenPos - new Vector2(32, 64) * ratio,
+                    null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
         }
