@@ -86,8 +86,6 @@ namespace TheatreGame
         private bool _moving;
         private float _spinnerRotation;
 
-        private float _initialCameraDistance;
-
         private struct Particle
         {
             public Vector2 Position;
