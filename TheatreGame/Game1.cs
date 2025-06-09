@@ -30,6 +30,7 @@ namespace TheatreGame
         private Texture2D _lightGradientTexture;
 
         private Texture2D _particleTexture;
+        private Texture2D _smokeTexture;
         private BasicEffect _colorEffect;
         private FontStashSharp.FontSystem _fontSystem;
         private FontStashSharp.DynamicSpriteFont _font;
@@ -47,6 +48,7 @@ namespace TheatreGame
         private Vector3 _cameraTarget;
         private Vector3 _cameraPosition;
         private float _cameraDistance;
+        private float _initialCameraDistance;
 
         private const float MinZoom = 15f;
         private const float MaxZoom = 50f;
@@ -54,6 +56,8 @@ namespace TheatreGame
         private const float CameraMoveSpeed = 10f;
 
         private Vector2 _campfireScreenPos;
+        private Vector2 _prevCampfireScreenPos;
+        private float _prevCameraDistance;
 
         private List<Vector3> _lightPositions;
 
@@ -84,8 +88,6 @@ namespace TheatreGame
         private Point? _aiPathStart;
         private bool _moving;
         private float _spinnerRotation;
-
-        private float _initialCameraDistance;
 
         private struct Particle
         {
@@ -154,9 +156,11 @@ namespace TheatreGame
             var screenPoint = GraphicsDevice.Viewport.Project(_lightPositions[0],
                 _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(screenPoint.X, screenPoint.Y);
+            _prevCampfireScreenPos = _campfireScreenPos;
+            _prevCameraDistance = _cameraDistance;
             SpawnParticlesAt(_fireParticles, 50, new Color(255, 170, 50, 255),
                 _campfireScreenPos, 10f);
-            SpawnParticlesAt(_smokeParticles, 40, new Color(80, 80, 80, 180),
+            SpawnSmokeParticles(_smokeParticles, 40, new Color(80, 80, 80, 180),
                 _campfireScreenPos, 15f);
 
             _characters = new List<Character>();
@@ -247,6 +251,8 @@ namespace TheatreGame
             _endTurnButtonTexture = LoadTexture("end_turn.png");
             _spinnerTexture = LoadTexture("spinner.png");
 
+            _smokeTexture = LoadTexture("smoke_particle.png");
+
             for (int i = 0; i < _characters.Count; i++)
             {
                 _characters[i].Texture = _bishopTexture;
@@ -279,6 +285,9 @@ namespace TheatreGame
 
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            _prevCameraDistance = _cameraDistance;
+            _prevCampfireScreenPos = _campfireScreenPos;
+
             var keyboard = Keyboard.GetState();
             Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
             Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.Up, direction));
@@ -300,12 +309,12 @@ namespace TheatreGame
             if (mouse.RightButton == ButtonState.Pressed &&
                 _prevMouseState.RightButton == ButtonState.Pressed)
             {
-                float dragFactor = 0.1f;
+                float dragFactor = 0.05f;
                 int dx = mouse.X - _prevMouseState.X;
                 int dy = mouse.Y - _prevMouseState.Y;
-                Vector3 delta = right * dx * dragFactor + forward * dy * dragFactor;
-                _cameraTarget -= new Vector3(delta.X, 0f, delta.Z);
-                _cameraPosition -= new Vector3(delta.X, 0f, delta.Z);
+                Vector3 delta = -(right * dx * dragFactor - forward * dy * dragFactor);
+                _cameraTarget += new Vector3(delta.X, 0f, delta.Z);
+                _cameraPosition += new Vector3(delta.X, 0f, delta.Z);
             }
 
             int scrollDelta = mouse.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
@@ -323,6 +332,7 @@ namespace TheatreGame
             _viewMatrix = Matrix.CreateLookAt(_cameraPosition, _cameraTarget, Vector3.Up);
             var campfireScreen = GraphicsDevice.Viewport.Project(Vector3.Zero, _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(campfireScreen.X, campfireScreen.Y);
+            Vector2 campfireDelta = _campfireScreenPos - _prevCampfireScreenPos;
             if (!_moving)
             {
                 if (mouse.LeftButton == ButtonState.Pressed &&
@@ -401,7 +411,7 @@ namespace TheatreGame
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
             UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
-            UpdateFireParticles(gameTime, _smokeParticles, _campfireScreenPos, 20f);
+            UpdateSmokeParticles(gameTime, _smokeParticles, _campfireScreenPos, campfireDelta, 15f, 40f);
             UpdateGrainTexture();
 
             base.Update(gameTime);
@@ -559,10 +569,11 @@ namespace TheatreGame
             _spriteBatch.End();
 
             _spriteBatch.Begin();
+            float smokeRatio = GetScaleForWorldPosition(Vector3.Zero, 1f);
             foreach (var p in _smokeParticles)
             {
-                _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+                _spriteBatch.Draw(_smokeTexture, p.Position, null, p.Color,
+                    0f, Vector2.Zero, p.Scale * smokeRatio, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
         }
@@ -571,10 +582,13 @@ namespace TheatreGame
         {
             float flicker = (0.1f + (float)_random.NextDouble() * 0.05f) * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64),
-                null, Color.White, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
-            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128),
-                null, Color.White * flicker, 0f, Vector2.Zero, 2f, SpriteEffects.None, 0f);
+            const float baseScale = 0.5f;
+            float scale = GetScaleForWorldPosition(Vector3.Zero, baseScale);
+            float ratio = scale / baseScale;
+            _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64) * ratio,
+                null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128) * ratio,
+                null, Color.White * flicker, 0f, Vector2.Zero, 2f * ratio, SpriteEffects.None, 0f);
             _spriteBatch.End();
         }
 
@@ -590,6 +604,20 @@ namespace TheatreGame
             var screen = GraphicsDevice.Viewport.Project(world,
                 _projectionMatrix, _viewMatrix, Matrix.Identity);
             return new Vector2(screen.X, screen.Y);
+        }
+
+        private Vector3 BoardToWorld(Vector2 boardPos)
+        {
+            return new Vector3((boardPos.X - 3.5f) * CellSize, 0f,
+                (boardPos.Y - 3.5f) * CellSize);
+        }
+
+        private float GetScaleForWorldPosition(Vector3 worldPos, float baseScale)
+        {
+            float distance = Vector3.Distance(_cameraPosition, worldPos);
+            if (distance <= 0.001f)
+                return baseScale;
+            return baseScale * (_initialCameraDistance / distance);
         }
 
         private Point? ScreenToBoard(Point screen)
@@ -699,10 +727,12 @@ namespace TheatreGame
             foreach (var c in _characters)
             {
                 var tex = c.Texture ?? _pawnTexture;
-                Vector2 offset = new Vector2(tex.Width * spriteScale / 2f,
-                                             tex.Height * spriteScale);
-                _spriteBatch.Draw(tex, c.ScreenPos - offset,
-                    null, Color.White, 0f, Vector2.Zero, spriteScale, SpriteEffects.None, 0f);
+                Vector3 world = BoardToWorld(new Vector2(c.BoardPos.X, c.BoardPos.Y));
+                const float baseScale = 0.5f;
+                float scale = GetScaleForWorldPosition(world, baseScale);
+                float ratio = scale / baseScale;
+                _spriteBatch.Draw(tex, c.ScreenPos - new Vector2(32, 64) * ratio,
+                    null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
         }
@@ -840,6 +870,52 @@ namespace TheatreGame
                     Scale = 0.5f + (float)_random.NextDouble() * 0.5f,
                     Color = color
                 });
+            }
+        }
+
+        private void SpawnSmokeParticles(List<Particle> list, int count, Color color,
+            Vector2 basePos, float range)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                list.Add(new Particle
+                {
+                    Position = basePos + new Vector2(
+                        (float)(_random.NextDouble() * 2f - 1f) * range,
+                        0f),
+                    Velocity = new Vector2(
+                        (float)(_random.NextDouble() * 0.4 - 0.2f),
+                        -(float)(_random.NextDouble() * 0.3 + 0.1f)),
+                    Lifetime = 2f + (float)_random.NextDouble() * 2f,
+                    Age = 0f,
+                    Scale = 0.05f + (float)_random.NextDouble() * 0.1f,
+                    Color = color
+                });
+            }
+        }
+
+        private void UpdateSmokeParticles(GameTime gameTime, List<Particle> particles,
+            Vector2 basePos, Vector2 baseDelta, float range, float maxHeight)
+        {
+            for (int i = 0; i < particles.Count; i++)
+            {
+                var p = particles[i];
+                p.Age += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                p.Position += baseDelta;
+                p.Position += p.Velocity;
+
+                if (p.Age >= p.Lifetime || p.Position.Y <= (basePos.Y - 60f) - maxHeight)
+                {
+                    p.Position = basePos + new Vector2(
+                        (float)(_random.NextDouble() * 2f - 1f) * range,
+                         -60f);
+                    p.Age = 0f;
+                    p.Lifetime = 0.5f + (float)_random.NextDouble() * 2f;
+                    p.Velocity = new Vector2(
+                        (float)(_random.NextDouble() * 0.4 - 0.2f),
+                        -(float)(_random.NextDouble() * 0.3 + 0.1f));
+                }
+                particles[i] = p;
             }
         }
 

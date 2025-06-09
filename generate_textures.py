@@ -119,3 +119,10 @@ spinner_draw.pieslice([
     spinner_size/2 + outer_r, spinner_size/2 + outer_r
 ], 0, 90, fill=(0, 0, 0, 0))
 save_if_missing(spinner, 'TheatreGame/Content/spinner.png')
+
+# Grey circle texture used for smoke particles
+smoke_size = 64
+smoke = Image.new('RGBA', (smoke_size, smoke_size), (0, 0, 0, 0))
+smoke_draw = ImageDraw.Draw(smoke)
+smoke_draw.ellipse([0, 0, smoke_size - 1, smoke_size - 1], fill=(128, 128, 128, 100))
+save_if_missing(smoke, 'TheatreGame/Content/smoke_particle.png')
