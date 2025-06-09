@@ -35,10 +35,10 @@ namespace TheatreGame
         private FontStashSharp.DynamicSpriteFont _font;
         private int _turn = 1;
         private const string MapName = "TheatreScene";
-        private List<Particle> _lightParticles;
-        private List<Particle> _dustParticles;
-        private List<Particle> _fireParticles;
-        private List<Particle> _smokeParticles;
+        private List<ScreenParticle> _lightParticles;
+        private List<ScreenParticle> _dustParticles;
+        private List<WorldParticle> _fireParticles;
+        private List<WorldParticle> _smokeParticles;
         private Texture2D _grainTexture;
         private Color[] _grainData;
         private Random _random;
@@ -86,10 +86,22 @@ namespace TheatreGame
         private bool _moving;
         private float _spinnerRotation;
 
-        private struct Particle
+        // Simple 2D particle used for screen space effects like dust or lights
+        private struct ScreenParticle
         {
             public Vector2 Position;
             public Vector2 Velocity;
+            public float Lifetime;
+            public float Age;
+            public float Scale;
+            public Color Color;
+        }
+
+        // 3D particle anchored in world space (campfire smoke/fire)
+        private struct WorldParticle
+        {
+            public Vector3 Position;
+            public Vector3 Velocity;
             public float Lifetime;
             public float Age;
             public float Scale;
@@ -142,21 +154,21 @@ namespace TheatreGame
             _curtainVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 10, -10), curtainNormal, new Vector2(8, 0));
 
             _random = new Random();
-            _lightParticles = new List<Particle>();
-            _dustParticles = new List<Particle>();
-            _fireParticles = new List<Particle>();
-            _smokeParticles = new List<Particle>();
+            _lightParticles = new List<ScreenParticle>();
+            _dustParticles = new List<ScreenParticle>();
+            _fireParticles = new List<WorldParticle>();
+            _smokeParticles = new List<WorldParticle>();
             _lightPositions = new List<Vector3> { Vector3.Zero }; // campfire
-            SpawnParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
-            SpawnParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
+            SpawnScreenParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
+            SpawnScreenParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
 
             var screenPoint = GraphicsDevice.Viewport.Project(_lightPositions[0],
                 _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(screenPoint.X, screenPoint.Y);
-            SpawnParticlesAt(_fireParticles, 50, new Color(255, 170, 50, 255),
-                _campfireScreenPos, 10f);
-            SpawnParticlesAt(_smokeParticles, 40, new Color(80, 80, 80, 180),
-                _campfireScreenPos, 15f);
+            SpawnWorldParticles(_fireParticles, 50, new Color(255, 170, 50, 255),
+                Vector3.Zero, 0.4f);
+            SpawnWorldParticles(_smokeParticles, 40, new Color(80, 80, 80, 180),
+                Vector3.Zero, 0.8f);
 
             _characters = new List<Character>();
 
@@ -397,10 +409,10 @@ namespace TheatreGame
                     _characters[i] = c;
                 }
             }
-            UpdateParticles(gameTime, _lightParticles);
-            UpdateParticles(gameTime, _dustParticles);
-            UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
-            UpdateFireParticles(gameTime, _smokeParticles, _campfireScreenPos, 20f);
+            UpdateScreenParticles(gameTime, _lightParticles);
+            UpdateScreenParticles(gameTime, _dustParticles);
+            UpdateWorldParticles(gameTime, _fireParticles, Vector3.Zero, 0.4f);
+            UpdateWorldParticles(gameTime, _smokeParticles, Vector3.Zero, 0.8f);
             UpdateGrainTexture();
 
             base.Update(gameTime);
@@ -482,11 +494,11 @@ namespace TheatreGame
             base.Draw(gameTime);
         }
 
-        private void SpawnParticles(List<Particle> list, int count, Color color)
+        private void SpawnScreenParticles(List<ScreenParticle> list, int count, Color color)
         {
             for (int i = 0; i < count; i++)
             {
-                list.Add(new Particle
+                list.Add(new ScreenParticle
                 {
                     Position = new Vector2(
                         _random.Next(0, _graphics.PreferredBackBufferWidth),
@@ -502,7 +514,7 @@ namespace TheatreGame
             }
         }
 
-        private void UpdateParticles(GameTime gameTime, List<Particle> particles)
+        private void UpdateScreenParticles(GameTime gameTime, List<ScreenParticle> particles)
         {
             for (int i = 0; i < particles.Count; i++)
             {
@@ -552,16 +564,24 @@ namespace TheatreGame
             _spriteBatch.Begin(blendState: BlendState.Additive);
             foreach (var p in _fireParticles)
             {
-                _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+                var screen = GraphicsDevice.Viewport.Project(p.Position,
+                    _projectionMatrix, _viewMatrix, Matrix.Identity);
+                Vector2 pos = new Vector2(screen.X, screen.Y);
+                float scale = GetScaleForWorldPosition(p.Position, p.Scale);
+                _spriteBatch.Draw(_particleTexture, pos, null, p.Color,
+                    0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
 
             _spriteBatch.Begin();
             foreach (var p in _smokeParticles)
             {
-                _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+                var screen = GraphicsDevice.Viewport.Project(p.Position,
+                    _projectionMatrix, _viewMatrix, Matrix.Identity);
+                Vector2 pos = new Vector2(screen.X, screen.Y);
+                float scale = GetScaleForWorldPosition(p.Position, p.Scale);
+                _spriteBatch.Draw(_particleTexture, pos, null, p.Color,
+                    0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
         }
@@ -840,19 +860,21 @@ namespace TheatreGame
             }
         }
 
-        private void SpawnParticlesAt(List<Particle> list, int count, Color color,
-            Vector2 center, float range)
+        private void SpawnWorldParticles(List<WorldParticle> list, int count, Color color,
+            Vector3 center, float range)
         {
             for (int i = 0; i < count; i++)
             {
-                list.Add(new Particle
+                list.Add(new WorldParticle
                 {
-                    Position = center + new Vector2(
+                    Position = center + new Vector3(
                         (float)(_random.NextDouble() * 2 - 1) * range,
+                        0f,
                         (float)(_random.NextDouble() * 2 - 1) * range),
-                    Velocity = new Vector2(
+                    Velocity = new Vector3(
                         (float)(_random.NextDouble() * 2 - 1),
-                        (float)(_random.NextDouble() * -2 - 0.5f)),
+                        (float)(_random.NextDouble() * 2 + 0.5f),
+                        (float)(_random.NextDouble() * 2 - 1)),
                     Lifetime = 1f + (float)_random.NextDouble(),
                     Age = 0f,
                     Scale = 0.5f + (float)_random.NextDouble() * 0.5f,
@@ -861,8 +883,8 @@ namespace TheatreGame
             }
         }
 
-        private void UpdateFireParticles(GameTime gameTime, List<Particle> particles,
-            Vector2 center, float range)
+        private void UpdateWorldParticles(GameTime gameTime, List<WorldParticle> particles,
+            Vector3 center, float range)
         {
             for (int i = 0; i < particles.Count; i++)
             {
@@ -872,14 +894,16 @@ namespace TheatreGame
 
                 if (p.Age >= p.Lifetime)
                 {
-                    p.Position = center + new Vector2(
+                    p.Position = center + new Vector3(
                         (float)(_random.NextDouble() * 2 - 1) * range,
+                        0f,
                         (float)(_random.NextDouble() * 2 - 1) * range);
                     p.Age = 0f;
                     p.Lifetime = 1f + (float)_random.NextDouble();
-                    p.Velocity = new Vector2(
+                    p.Velocity = new Vector3(
                         (float)(_random.NextDouble() * 2 - 1),
-                        (float)(_random.NextDouble() * -2 - 0.5f));
+                        (float)(_random.NextDouble() * 2 + 0.5f),
+                        (float)(_random.NextDouble() * 2 - 1));
                 }
                 particles[i] = p;
             }
