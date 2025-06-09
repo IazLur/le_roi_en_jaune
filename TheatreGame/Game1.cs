@@ -56,6 +56,8 @@ namespace TheatreGame
         private const float CameraMoveSpeed = 10f;
 
         private Vector2 _campfireScreenPos;
+        private Vector2 _prevCampfireScreenPos;
+        private float _prevCameraDistance;
 
         private List<Vector3> _lightPositions;
 
@@ -154,6 +156,8 @@ namespace TheatreGame
             var screenPoint = GraphicsDevice.Viewport.Project(_lightPositions[0],
                 _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(screenPoint.X, screenPoint.Y);
+            _prevCampfireScreenPos = _campfireScreenPos;
+            _prevCameraDistance = _cameraDistance;
             SpawnParticlesAt(_fireParticles, 50, new Color(255, 170, 50, 255),
                 _campfireScreenPos, 10f);
             SpawnSmokeParticles(_smokeParticles, 40, new Color(80, 80, 80, 180),
@@ -281,6 +285,9 @@ namespace TheatreGame
 
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            _prevCameraDistance = _cameraDistance;
+            _prevCampfireScreenPos = _campfireScreenPos;
+
             var keyboard = Keyboard.GetState();
             Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
             Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.Up, direction));
@@ -325,6 +332,7 @@ namespace TheatreGame
             _viewMatrix = Matrix.CreateLookAt(_cameraPosition, _cameraTarget, Vector3.Up);
             var campfireScreen = GraphicsDevice.Viewport.Project(Vector3.Zero, _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(campfireScreen.X, campfireScreen.Y);
+            Vector2 campfireDelta = _campfireScreenPos - _prevCampfireScreenPos;
             if (!_moving)
             {
                 if (mouse.LeftButton == ButtonState.Pressed &&
@@ -403,7 +411,7 @@ namespace TheatreGame
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
             UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
-            UpdateSmokeParticles(gameTime, _smokeParticles, _campfireScreenPos, 15f, 40f);
+            UpdateSmokeParticles(gameTime, _smokeParticles, _campfireScreenPos, campfireDelta, 15f, 40f);
             UpdateGrainTexture();
 
             base.Update(gameTime);
@@ -561,10 +569,11 @@ namespace TheatreGame
             _spriteBatch.End();
 
             _spriteBatch.Begin();
+            float smokeRatio = GetScaleForWorldPosition(Vector3.Zero, 1f);
             foreach (var p in _smokeParticles)
             {
                 _spriteBatch.Draw(_smokeTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+                    0f, Vector2.Zero, p.Scale * smokeRatio, SpriteEffects.None, 0f);
             }
             _spriteBatch.End();
         }
@@ -886,14 +895,14 @@ namespace TheatreGame
         }
 
         private void UpdateSmokeParticles(GameTime gameTime, List<Particle> particles,
-            Vector2 basePos, float range, float maxHeight)
+            Vector2 basePos, Vector2 baseDelta, float range, float maxHeight)
         {
             for (int i = 0; i < particles.Count; i++)
             {
                 var p = particles[i];
                 p.Age += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                p.Position += baseDelta;
                 p.Position += p.Velocity;
-                p.Position.X += (basePos.X - p.Position.X) * 0.03f;
 
                 if (p.Age >= p.Lifetime || p.Position.Y <= (basePos.Y - 60f) - maxHeight)
                 {
