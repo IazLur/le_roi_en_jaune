@@ -86,6 +86,8 @@ namespace TheatreGame
         private bool _moving;
         private float _spinnerRotation;
 
+        private float _initialCameraDistance;
+
         private struct Particle
         {
             public Vector2 Position;
@@ -122,22 +124,24 @@ namespace TheatreGame
             // Create floor quad with normals for lighting
             _floorVertices = new VertexPositionNormalTexture[6];
             var floorNormal = Vector3.Up;
+            // Tile the floor texture 8x8 across the stage
             _floorVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), floorNormal, new Vector2(0, 0));
-            _floorVertices[1] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
-            _floorVertices[2] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
-            _floorVertices[3] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(1, 0));
-            _floorVertices[4] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 1));
-            _floorVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 0, 10), floorNormal, new Vector2(1, 1));
+            _floorVertices[1] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 8));
+            _floorVertices[2] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(8, 0));
+            _floorVertices[3] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), floorNormal, new Vector2(8, 0));
+            _floorVertices[4] = new VertexPositionNormalTexture(new Vector3(-10, 0, 10), floorNormal, new Vector2(0, 8));
+            _floorVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 0, 10), floorNormal, new Vector2(8, 8));
 
             // Create curtain quad behind the stage
             _curtainVertices = new VertexPositionNormalTexture[6];
             var curtainNormal = Vector3.Backward;
-            _curtainVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), curtainNormal, new Vector2(0, 1));
-            _curtainVertices[1] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
+            // Tile the curtain texture so it spans the stage width
+            _curtainVertices[0] = new VertexPositionNormalTexture(new Vector3(-10, 0, -10), curtainNormal, new Vector2(0, 4));
+            _curtainVertices[1] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(8, 4));
             _curtainVertices[2] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
             _curtainVertices[3] = new VertexPositionNormalTexture(new Vector3(-10, 10, -10), curtainNormal, new Vector2(0, 0));
-            _curtainVertices[4] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(1, 1));
-            _curtainVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 10, -10), curtainNormal, new Vector2(1, 0));
+            _curtainVertices[4] = new VertexPositionNormalTexture(new Vector3(10, 0, -10), curtainNormal, new Vector2(8, 4));
+            _curtainVertices[5] = new VertexPositionNormalTexture(new Vector3(10, 10, -10), curtainNormal, new Vector2(8, 0));
 
             _random = new Random();
             _lightParticles = new List<Particle>();
@@ -190,10 +194,29 @@ namespace TheatreGame
             if (File.Exists(finalPath))
             {
                 using var stream = TitleContainer.OpenStream(finalPath);
-                return Texture2D.FromStream(GraphicsDevice, stream);
+                return LoadAndScale(stream);
             }
             using var fallback = TitleContainer.OpenStream(Path.Combine("Content", fileName));
-            return Texture2D.FromStream(GraphicsDevice, fallback);
+            return LoadAndScale(fallback);
+        }
+
+        private Texture2D LoadAndScale(Stream stream)
+        {
+            var texture = Texture2D.FromStream(GraphicsDevice, stream);
+            if (texture.Width == 128 && texture.Height == 128)
+                return texture;
+
+            // Resize to 128x128 using a temporary render target
+            var rt = new RenderTarget2D(GraphicsDevice, 128, 128);
+            using var sb = new SpriteBatch(GraphicsDevice);
+            GraphicsDevice.SetRenderTarget(rt);
+            GraphicsDevice.Clear(Color.Transparent);
+            sb.Begin(samplerState: SamplerState.LinearClamp);
+            sb.Draw(texture, new Rectangle(0, 0, 128, 128), Color.White);
+            sb.End();
+            GraphicsDevice.SetRenderTarget(null);
+            texture.Dispose();
+            return rt;
         }
 
         protected override void LoadContent()
@@ -258,11 +281,15 @@ namespace TheatreGame
             _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             var keyboard = Keyboard.GetState();
+            Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
+            Vector3 right = Vector3.Normalize(Vector3.Cross(Vector3.Up, direction));
+            Vector3 forward = Vector3.Normalize(Vector3.Cross(direction, right));
+
             Vector3 move = Vector3.Zero;
-            if (keyboard.IsKeyDown(Keys.Left)) move.X -= 1f;
-            if (keyboard.IsKeyDown(Keys.Right)) move.X += 1f;
-            if (keyboard.IsKeyDown(Keys.Up)) move.Z -= 1f;
-            if (keyboard.IsKeyDown(Keys.Down)) move.Z += 1f;
+            if (keyboard.IsKeyDown(Keys.Left)) move -= right;
+            if (keyboard.IsKeyDown(Keys.Right)) move += right;
+            if (keyboard.IsKeyDown(Keys.Up)) move += forward;
+            if (keyboard.IsKeyDown(Keys.Down)) move -= forward;
             if (move != Vector3.Zero)
             {
                 move *= CameraMoveSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -277,8 +304,9 @@ namespace TheatreGame
                 float dragFactor = 0.1f;
                 int dx = mouse.X - _prevMouseState.X;
                 int dy = mouse.Y - _prevMouseState.Y;
-                _cameraTarget -= new Vector3(dx * dragFactor, 0f, dy * dragFactor);
-                _cameraPosition -= new Vector3(dx * dragFactor, 0f, dy * dragFactor);
+                Vector3 delta = right * dx * dragFactor + forward * dy * dragFactor;
+                _cameraTarget -= new Vector3(delta.X, 0f, delta.Z);
+                _cameraPosition -= new Vector3(delta.X, 0f, delta.Z);
             }
 
             int scrollDelta = mouse.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
@@ -288,7 +316,7 @@ namespace TheatreGame
                 _cameraDistance = MathHelper.Clamp(_cameraDistance - zoomStep, MinZoom, MaxZoom);
             }
 
-            Vector3 direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
+            direction = Vector3.Normalize(_cameraPosition - _cameraTarget);
             _cameraPosition = _cameraTarget + direction * _cameraDistance;
             _cameraTarget.X = MathHelper.Clamp(_cameraTarget.X, -CameraMoveLimit, CameraMoveLimit);
             _cameraTarget.Z = MathHelper.Clamp(_cameraTarget.Z, -CameraMoveLimit, CameraMoveLimit);
@@ -367,7 +395,7 @@ namespace TheatreGame
                 for (int i = 0; i < _characters.Count; i++)
                 {
                     var c = _characters[i];
-                    c.ScreenPos = Vector2.Lerp(c.ScreenPos, BoardToScreen(c.BoardPos), 0.1f);
+                    c.ScreenPos = BoardToScreen(c.BoardPos);
                     _characters[i] = c;
                 }
             }
@@ -389,6 +417,9 @@ namespace TheatreGame
             // resulted in nothing being rendered and the screen staying blue.
             // Switch to culling clockwise faces so our geometry becomes visible.
             GraphicsDevice.RasterizerState = RasterizerState.CullClockwise;
+
+            // Ensure floor and curtain textures repeat when UVs exceed [0,1]
+            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 
             _effect.View = _viewMatrix;
             _effect.Projection = _projectionMatrix;
@@ -681,6 +712,7 @@ namespace TheatreGame
 
         private void DrawCharacters()
         {
+            float spriteScale = 0.5f * _initialCameraDistance / _cameraDistance;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             foreach (var c in _characters)
             {
@@ -714,10 +746,10 @@ namespace TheatreGame
                     dir /= dist;
 
                     float rotation = (float)Math.Atan2(dir.Y, dir.X) + MathHelper.PiOver2;
-                    float baseScale = 0.5f;
+                    float baseScale = 0.5f * _initialCameraDistance / _cameraDistance;
                     float length = MathHelper.Clamp(dist / 100f, 0.5f, 2f);
                     Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
-                    Vector2 pos = c.ScreenPos + dir * 2f;
+                    Vector2 pos = c.ScreenPos + new Vector2(0f, baseScale * 2f);
 
                     _spriteBatch.Draw(tex, pos, null, new Color(0, 0, 0, 150), rotation,
                         new Vector2(tex.Width / 2f, tex.Height), scale, SpriteEffects.None, 0f);
