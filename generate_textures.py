@@ -124,5 +124,5 @@ save_if_missing(spinner, 'TheatreGame/Content/spinner.png')
 smoke_size = 64
 smoke = Image.new('RGBA', (smoke_size, smoke_size), (0, 0, 0, 0))
 smoke_draw = ImageDraw.Draw(smoke)
-smoke_draw.ellipse([0, 0, smoke_size - 1, smoke_size - 1], fill=(128, 128, 128, 200))
+smoke_draw.ellipse([0, 0, smoke_size - 1, smoke_size - 1], fill=(128, 128, 128, 100))
 save_if_missing(smoke, 'TheatreGame/Content/smoke_particle.png')

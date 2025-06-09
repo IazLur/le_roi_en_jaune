@@ -154,10 +154,11 @@ namespace TheatreGame
             var screenPoint = GraphicsDevice.Viewport.Project(_lightPositions[0],
                 _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(screenPoint.X, screenPoint.Y);
-            SpawnParticlesAt(_fireParticles, 50, new Color(255, 170, 50, 255),
-                _campfireScreenPos, 10f);
-            SpawnSmokeParticles(_smokeParticles, 40, new Color(80, 80, 80, 180),
-                _campfireScreenPos, 15f);
+            Vector2 fireOrigin = _campfireScreenPos + new Vector2(0f, -20f);
+            SpawnParticlesAt(_fireParticles, 25, new Color(255, 170, 50, 200),
+                fireOrigin, 5f);
+            SpawnSmokeParticles(_smokeParticles, 20, new Color(80, 80, 80, 120),
+                fireOrigin, 10f);
 
             _characters = new List<Character>();
 
@@ -306,8 +307,8 @@ namespace TheatreGame
                 int dx = mouse.X - _prevMouseState.X;
                 int dy = mouse.Y - _prevMouseState.Y;
                 Vector3 delta = right * dx * dragFactor + forward * dy * dragFactor;
-                _cameraTarget += new Vector3(delta.X, 0f, delta.Z);
-                _cameraPosition += new Vector3(delta.X, 0f, delta.Z);
+                _cameraTarget -= new Vector3(delta.X, 0f, delta.Z);
+                _cameraPosition -= new Vector3(delta.X, 0f, delta.Z);
             }
 
             int scrollDelta = mouse.ScrollWheelValue - _prevMouseState.ScrollWheelValue;
@@ -402,8 +403,9 @@ namespace TheatreGame
             }
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
-            UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
-            UpdateSmokeParticles(gameTime, _smokeParticles, _campfireScreenPos, 15f, 40f);
+            Vector2 fireOrigin = _campfireScreenPos + new Vector2(0f, -20f);
+            UpdateFireParticles(gameTime, _fireParticles, fireOrigin, 5f);
+            UpdateSmokeParticles(gameTime, _smokeParticles, fireOrigin, 10f, 30f);
             UpdateGrainTexture();
 
             base.Update(gameTime);
@@ -854,11 +856,11 @@ namespace TheatreGame
                         (float)(_random.NextDouble() * 2 - 1) * range,
                         (float)(_random.NextDouble() * 2 - 1) * range),
                     Velocity = new Vector2(
-                        (float)(_random.NextDouble() * 2 - 1),
-                        (float)(_random.NextDouble() * -2 - 0.5f)),
+                        (float)(_random.NextDouble() * 1.0 - 0.5f),
+                        (float)(_random.NextDouble() * -1.5f - 0.2f)),
                     Lifetime = 1f + (float)_random.NextDouble(),
                     Age = 0f,
-                    Scale = 0.5f + (float)_random.NextDouble() * 0.5f,
+                    Scale = 0.3f + (float)_random.NextDouble() * 0.3f,
                     Color = color
                 });
             }
@@ -875,11 +877,11 @@ namespace TheatreGame
                         (float)(_random.NextDouble() * 2 - 1) * range,
                         0f),
                     Velocity = new Vector2(
-                        (float)(_random.NextDouble() * 0.4 - 0.2f),
-                        -(float)(_random.NextDouble() * 0.3 + 0.1f)),
+                        (float)(_random.NextDouble() * 0.2 - 0.1f),
+                        -(float)(_random.NextDouble() * 0.2 + 0.05f)),
                     Lifetime = 2f + (float)_random.NextDouble() * 2f,
                     Age = 0f,
-                    Scale = 0.5f + (float)_random.NextDouble() * 0.5f,
+                    Scale = 0.2f + (float)_random.NextDouble() * 0.3f,
                     Color = color
                 });
             }
@@ -903,8 +905,8 @@ namespace TheatreGame
                     p.Age = 0f;
                     p.Lifetime = 2f + (float)_random.NextDouble() * 2f;
                     p.Velocity = new Vector2(
-                        (float)(_random.NextDouble() * 0.4 - 0.2f),
-                        -(float)(_random.NextDouble() * 0.3 + 0.1f));
+                        (float)(_random.NextDouble() * 0.2 - 0.1f),
+                        -(float)(_random.NextDouble() * 0.2 + 0.05f));
                 }
                 particles[i] = p;
             }
@@ -923,12 +925,12 @@ namespace TheatreGame
                 {
                     p.Position = center + new Vector2(
                         (float)(_random.NextDouble() * 2 - 1) * range,
-                        (float)(_random.NextDouble() * 2 - 1) * range);
+                        (float)(_random.NextDouble() * -1) * range);
                     p.Age = 0f;
                     p.Lifetime = 1f + (float)_random.NextDouble();
                     p.Velocity = new Vector2(
-                        (float)(_random.NextDouble() * 2 - 1),
-                        (float)(_random.NextDouble() * -2 - 0.5f));
+                        (float)(_random.NextDouble() * 1.0 - 0.5f),
+                        (float)(_random.NextDouble() * -1.5f - 0.2f));
                 }
                 particles[i] = p;
             }
