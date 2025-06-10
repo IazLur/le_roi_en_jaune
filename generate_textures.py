@@ -140,10 +140,3 @@ apple_draw.ellipse([4, 6, 28, 30], fill=(200, 0, 0))
 apple_draw.rectangle([14, 2, 18, 10], fill=(100, 60, 0))
 save_if_missing(apple, 'TheatreGame/Content/apple.png')
 
-# Basic oval shadow used for all entities
-shadow = Image.new('RGBA', (64, 32), (0, 0, 0, 0))
-shadow_draw = ImageDraw.Draw(shadow)
-for r in range(16, 0, -1):
-    alpha = int(150 * (r / 16))
-    shadow_draw.ellipse([32 - r*2, 16 - r, 32 + r*2, 16 + r], fill=(0, 0, 0, alpha))
-save_if_missing(shadow, 'TheatreGame/Content/shadow.png')

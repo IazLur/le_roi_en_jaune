@@ -29,7 +29,6 @@ namespace TheatreGame
         private Texture2D _bishopTexture;
         private Texture2D _spinnerTexture;
         private Texture2D _lightGradientTexture;
-        private Texture2D _shadowTexture;
 
         private Texture2D _particleTexture;
         private Texture2D _smokeTexture;
@@ -237,7 +236,6 @@ namespace TheatreGame
             _campfireTexture = LoadTexture("campfire.png");
             _appleTexture = LoadTexture("apple.png");
 
-            _shadowTexture = LoadTexture("shadow.png");
 
             _pawnTexture = LoadTexture("pawn.png");
             _bishopTexture = LoadTexture("bishop.png");
@@ -656,7 +654,7 @@ namespace TheatreGame
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             foreach (var e in _entities)
             {
-                if (e.IsLightSource)
+                if (e.IsLightSource || e.Texture == null)
                     continue;
                 if (!IsTileVisible(e.BoardPos))
                     continue;
@@ -841,13 +839,14 @@ namespace TheatreGame
                     dir /= dist;
 
                     float rotation = (float)Math.Atan2(dir.Y, dir.X) + MathHelper.PiOver2;
-                    float baseScale = 0.5f * _initialCameraDistance / _cameraDistance;
+                    float baseScale = c.BaseScale * _initialCameraDistance / _cameraDistance;
                     float length = MathHelper.Clamp(dist / 100f, 0.5f, 2f);
                     Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
                     Vector2 pos = c.ScreenPos + new Vector2(0f, baseScale * 2f);
 
-                    _spriteBatch.Draw(_shadowTexture, pos, null, new Color(0, 0, 0, 150), rotation,
-                        new Vector2(_shadowTexture.Width / 2f, _shadowTexture.Height / 2f), scale, SpriteEffects.None, 0f);
+                    var tex = c.Texture ?? _pawnTexture;
+                    _spriteBatch.Draw(tex, pos, null, new Color(0, 0, 0, 150), rotation,
+                        new Vector2(tex.Width / 2f, tex.Height), scale, SpriteEffects.None, 0f);
                 }
 
                 foreach (var e in _entities)
@@ -867,8 +866,11 @@ namespace TheatreGame
                     Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
                     Vector2 pos = entityScreen + new Vector2(0f, baseScale * 2f);
 
-                    _spriteBatch.Draw(_shadowTexture, pos, null, new Color(0, 0, 0, 150), rotation,
-                        new Vector2(_shadowTexture.Width / 2f, _shadowTexture.Height / 2f), scale, SpriteEffects.None, 0f);
+                    if (e.Texture != null)
+                    {
+                        _spriteBatch.Draw(e.Texture, pos, null, new Color(0, 0, 0, 150), rotation,
+                            new Vector2(e.Texture.Width / 2f, e.Texture.Height), scale, SpriteEffects.None, 0f);
+                    }
                 }
             }
             _spriteBatch.End();
