@@ -168,7 +168,7 @@ namespace TheatreGame
             {
                 applePos = new Point(_random.Next(8), _random.Next(8));
             } while (applePos == _campfireTile || applePos == playerPos || applePos == aiPos);
-            _entities.Add(new Entity(applePos, null, 0.25f, false, new Vector2(16, 16)));
+            _entities.Add(new Entity(applePos, _appleTexture, 0.25f, false, new Vector2(16, 16)));
             ClearFogAround(applePos, 0);
 
             int buttonWidth = 140;
