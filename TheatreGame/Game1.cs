@@ -29,6 +29,7 @@ namespace TheatreGame
         private Texture2D _bishopTexture;
         private Texture2D _spinnerTexture;
         private Texture2D _lightGradientTexture;
+        private Texture2D _shadowTexture;
 
         private Texture2D _particleTexture;
         private Texture2D _smokeTexture;
@@ -71,20 +72,10 @@ namespace TheatreGame
 
         private const float CellSize = 2.5f;
 
-        private class Character
-        {
-            public Point BoardPos;
-            public Vector2 ScreenPos;
-            public Queue<Point> Path = new Queue<Point>();
-            public float MoveProgress = 0f;
-            public Texture2D Texture;
-            public bool IsPlayer;
-        }
-
         private List<Character> _characters = new List<Character>();
+        private List<Entity> _entities = new List<Entity>();
         private bool[,] _fog = new bool[8,8];
         private readonly Point _campfireTile = new Point(4, 3);
-        private Point _appleTile;
         private Point? _hoveredTile;
         private Point? _selectedTile;
         private List<Point> _playerPath;
@@ -93,17 +84,6 @@ namespace TheatreGame
         private Point? _aiPathStart;
         private bool _moving;
         private float _spinnerRotation;
-
-        private struct Particle
-        {
-            public Vector2 Position;
-            public Vector2 Velocity;
-            public float Lifetime;
-            public float Age;
-            public float Scale;
-            public Color Color;
-        }
-
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -171,29 +151,24 @@ namespace TheatreGame
             SpawnSmokeParticles(_smokeParticles, 40, new Color(80, 80, 80, 180),
                 _campfireScreenPos, 15f);
 
+            _entities = new List<Entity>();
+            _entities.Add(new Entity(_campfireTile, null, 0.5f, true));
+
             _characters = new List<Character>();
 
 
             var playerPos = new Point(4, 7);
-            _characters.Add(new Character
-            {
-                BoardPos = playerPos,
-                ScreenPos = BoardToScreen(playerPos),
-                IsPlayer = true
-            });
+            _characters.Add(new Character(playerPos, null, true) { ScreenPos = BoardToScreen(playerPos) });
 
             var aiPos = new Point(4, 0);
-            _characters.Add(new Character
-            {
-                BoardPos = aiPos,
-                ScreenPos = BoardToScreen(aiPos),
-                IsPlayer = false
-            });
+            _characters.Add(new Character(aiPos, null, false) { ScreenPos = BoardToScreen(aiPos) });
 
+            Point applePos;
             do
             {
-                _appleTile = new Point(_random.Next(8), _random.Next(8));
-            } while (_appleTile == _campfireTile || _appleTile == playerPos || _appleTile == aiPos);
+                applePos = new Point(_random.Next(8), _random.Next(8));
+            } while (applePos == _campfireTile || applePos == playerPos || applePos == aiPos);
+            _entities.Add(new Entity(applePos, null, 0.25f, false, new Vector2(16, 16)));
 
             int buttonWidth = 140;
             int buttonHeight = 40;
@@ -262,6 +237,8 @@ namespace TheatreGame
             _campfireTexture = LoadTexture("campfire.png");
             _appleTexture = LoadTexture("apple.png");
 
+            _shadowTexture = LoadTexture("shadow.png");
+
             _pawnTexture = LoadTexture("pawn.png");
             _bishopTexture = LoadTexture("bishop.png");
             _lightGradientTexture = LoadTexture("light_gradient.png");
@@ -274,6 +251,15 @@ namespace TheatreGame
             for (int i = 0; i < _characters.Count; i++)
             {
                 _characters[i].Texture = _bishopTexture;
+            }
+
+            foreach (var e in _entities)
+            {
+                if (e.BoardPos == _campfireTile)
+                    e.Texture = _campfireTexture;
+                else
+                    e.Texture = _appleTexture;
+                e.ScreenPos = BoardToScreen(e.BoardPos);
             }
 
             _fontSystem = new FontStashSharp.FontSystem();
@@ -497,7 +483,7 @@ namespace TheatreGame
                 DrawPath(start, _aiPath, Color.Orange);
             }
             DrawCampfire();
-            DrawApple();
+            DrawEntities();
             DrawShadows();
             DrawCharacters();
             DrawParticles();
@@ -665,18 +651,22 @@ namespace TheatreGame
             _spriteBatch.End();
         }
 
-        private void DrawApple()
+        private void DrawEntities()
         {
-            if (!IsTileVisible(_appleTile))
-                return;
-            Vector2 screenPos = BoardToScreen(_appleTile);
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            const float baseScale = 0.25f;
-            Vector3 world = BoardToWorld(new Vector2(_appleTile.X, _appleTile.Y));
-            float scale = GetScaleForWorldPosition(world, baseScale);
-            float ratio = scale / baseScale;
-            _spriteBatch.Draw(_appleTexture, screenPos - new Vector2(16, 16) * ratio,
-                null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            foreach (var e in _entities)
+            {
+                if (e.IsLightSource)
+                    continue;
+                if (!IsTileVisible(e.BoardPos))
+                    continue;
+                Vector2 screen = BoardToScreen(e.BoardPos);
+                Vector3 world = BoardToWorld(new Vector2(e.BoardPos.X, e.BoardPos.Y));
+                float scale = GetScaleForWorldPosition(world, e.BaseScale);
+                float ratio = scale / e.BaseScale;
+                _spriteBatch.Draw(e.Texture, screen - e.Origin * ratio, null,
+                    Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
             _spriteBatch.End();
         }
 
@@ -805,6 +795,10 @@ namespace TheatreGame
             {
                 occ[c.BoardPos.X, c.BoardPos.Y] = true;
             }
+            foreach (var e in _entities)
+            {
+                occ[e.BoardPos.X, e.BoardPos.Y] = true;
+            }
             return occ;
         }
 
@@ -840,7 +834,6 @@ namespace TheatreGame
                 {
                     if (!IsTileVisible(c.BoardPos))
                         continue;
-                    var tex = c.Texture ?? _pawnTexture;
                     Vector2 dir = c.ScreenPos - lightPos;
                     float dist = dir.Length();
                     if (dist < 1f)
@@ -853,8 +846,29 @@ namespace TheatreGame
                     Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
                     Vector2 pos = c.ScreenPos + new Vector2(0f, baseScale * 2f);
 
-                    _spriteBatch.Draw(tex, pos, null, new Color(0, 0, 0, 150), rotation,
-                        new Vector2(tex.Width / 2f, tex.Height), scale, SpriteEffects.None, 0f);
+                    _spriteBatch.Draw(_shadowTexture, pos, null, new Color(0, 0, 0, 150), rotation,
+                        new Vector2(_shadowTexture.Width / 2f, _shadowTexture.Height / 2f), scale, SpriteEffects.None, 0f);
+                }
+
+                foreach (var e in _entities)
+                {
+                    if (e.IsLightSource || !IsTileVisible(e.BoardPos))
+                        continue;
+                    Vector2 entityScreen = BoardToScreen(e.BoardPos);
+                    Vector2 dir = entityScreen - lightPos;
+                    float dist = dir.Length();
+                    if (dist < 1f)
+                        dist = 1f;
+                    dir /= dist;
+
+                    float rotation = (float)Math.Atan2(dir.Y, dir.X) + MathHelper.PiOver2;
+                    float baseScale = e.BaseScale * _initialCameraDistance / _cameraDistance;
+                    float length = MathHelper.Clamp(dist / 100f, 0.5f, 2f);
+                    Vector2 scale = new Vector2(baseScale * 0.3f, baseScale) * length;
+                    Vector2 pos = entityScreen + new Vector2(0f, baseScale * 2f);
+
+                    _spriteBatch.Draw(_shadowTexture, pos, null, new Color(0, 0, 0, 150), rotation,
+                        new Vector2(_shadowTexture.Width / 2f, _shadowTexture.Height / 2f), scale, SpriteEffects.None, 0f);
                 }
             }
             _spriteBatch.End();
