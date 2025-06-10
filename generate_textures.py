@@ -126,3 +126,7 @@ smoke = Image.new('RGBA', (smoke_size, smoke_size), (0, 0, 0, 0))
 smoke_draw = ImageDraw.Draw(smoke)
 smoke_draw.ellipse([0, 0, smoke_size - 1, smoke_size - 1], fill=(128, 128, 128, 100))
 save_if_missing(smoke, 'TheatreGame/Content/smoke_particle.png')
+
+# Simple fog texture used for fog of war overlay
+fog = Image.new('RGBA', (128, 128), (100, 100, 100, 200))
+save_if_missing(fog, 'TheatreGame/Content/fog.png')

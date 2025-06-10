@@ -31,6 +31,7 @@ namespace TheatreGame
 
         private Texture2D _particleTexture;
         private Texture2D _smokeTexture;
+        private Texture2D _fogTexture;
         private BasicEffect _colorEffect;
         private FontStashSharp.FontSystem _fontSystem;
         private FontStashSharp.DynamicSpriteFont _font;
@@ -80,6 +81,8 @@ namespace TheatreGame
         }
 
         private List<Character> _characters = new List<Character>();
+        private bool[,] _fog = new bool[8,8];
+        private readonly Point _campfireTile = new Point(4, 3);
         private Point? _hoveredTile;
         private Point? _selectedTile;
         private List<Point> _playerPath;
@@ -149,7 +152,10 @@ namespace TheatreGame
             _dustParticles = new List<Particle>();
             _fireParticles = new List<Particle>();
             _smokeParticles = new List<Particle>();
-            _lightPositions = new List<Vector3> { Vector3.Zero }; // campfire
+            _lightPositions = new List<Vector3>
+            {
+                BoardToWorld(new Vector2(_campfireTile.X, _campfireTile.Y))
+            };
             SpawnParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
             SpawnParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
 
@@ -189,6 +195,9 @@ namespace TheatreGame
                 _graphics.PreferredBackBufferHeight - ToolbarHeight + (ToolbarHeight - buttonHeight) / 2,
                 buttonWidth,
                 buttonHeight);
+
+            SetAllFog(true);
+            ClearFogAround(playerPos, 3);
         }
 
         private Texture2D LoadTexture(string fileName)
@@ -252,6 +261,7 @@ namespace TheatreGame
             _spinnerTexture = LoadTexture("spinner.png");
 
             _smokeTexture = LoadTexture("smoke_particle.png");
+            _fogTexture = LoadTexture("fog.png");
 
             for (int i = 0; i < _characters.Count; i++)
             {
@@ -330,7 +340,7 @@ namespace TheatreGame
             _cameraTarget.Z = MathHelper.Clamp(_cameraTarget.Z, -CameraMoveLimit, CameraMoveLimit);
             _cameraPosition = _cameraTarget + direction * _cameraDistance;
             _viewMatrix = Matrix.CreateLookAt(_cameraPosition, _cameraTarget, Vector3.Up);
-            var campfireScreen = GraphicsDevice.Viewport.Project(Vector3.Zero, _projectionMatrix, _viewMatrix, Matrix.Identity);
+            var campfireScreen = GraphicsDevice.Viewport.Project(_lightPositions[0], _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(campfireScreen.X, campfireScreen.Y);
             Vector2 campfireDelta = _campfireScreenPos - _prevCampfireScreenPos;
             if (!_moving)
@@ -396,6 +406,8 @@ namespace TheatreGame
                     _playerPathStart = null;
                     _aiPathStart = null;
                     _selectedTile = null;
+                    var playerChar = _characters.Find(ch => ch.IsPlayer);
+                    ClearFogAround(playerChar.BoardPos, 3);
                     _turn++;
                 }
             }
@@ -480,6 +492,7 @@ namespace TheatreGame
             DrawShadows();
             DrawCharacters();
             DrawParticles();
+            DrawFog();
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             _spriteBatch.Draw(_grainTexture,
@@ -560,26 +573,77 @@ namespace TheatreGame
             }
             _spriteBatch.End();
 
-            _spriteBatch.Begin(blendState: BlendState.Additive);
-            foreach (var p in _fireParticles)
+            if (IsTileVisible(_campfireTile))
             {
-                _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
-            }
-            _spriteBatch.End();
+                _spriteBatch.Begin(blendState: BlendState.Additive);
+                foreach (var p in _fireParticles)
+                {
+                    _spriteBatch.Draw(_particleTexture, p.Position, null, p.Color,
+                        0f, Vector2.Zero, p.Scale, SpriteEffects.None, 0f);
+                }
+                _spriteBatch.End();
 
-            _spriteBatch.Begin();
-            float smokeRatio = GetScaleForWorldPosition(Vector3.Zero, 1f);
-            foreach (var p in _smokeParticles)
-            {
-                _spriteBatch.Draw(_smokeTexture, p.Position, null, p.Color,
-                    0f, Vector2.Zero, p.Scale * smokeRatio, SpriteEffects.None, 0f);
+                _spriteBatch.Begin();
+                float smokeRatio = GetScaleForWorldPosition(Vector3.Zero, 1f);
+                foreach (var p in _smokeParticles)
+                {
+                    _spriteBatch.Draw(_smokeTexture, p.Position, null, p.Color,
+                        0f, Vector2.Zero, p.Scale * smokeRatio, SpriteEffects.None, 0f);
+                }
+                _spriteBatch.End();
             }
-            _spriteBatch.End();
+        }
+
+        private void DrawFog()
+        {
+            _effect.View = _viewMatrix;
+            _effect.Projection = _projectionMatrix;
+            _effect.World = Matrix.Identity;
+            _effect.FogEnabled = true;
+            _effect.FogColor = Vector3.Zero;
+            _effect.FogStart = 30f;
+            _effect.FogEnd = 80f;
+            _effect.Texture = _fogTexture;
+
+            GraphicsDevice.BlendState = BlendState.AlphaBlend;
+            for (int x = 0; x < 8; x++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    if (!_fog[x, y])
+                        continue;
+                    DrawFogTile(x, y);
+                }
+            }
+            GraphicsDevice.BlendState = BlendState.Opaque;
+        }
+
+        private void DrawFogTile(int x, int y)
+        {
+            float startX = (x - 4) * CellSize;
+            float startZ = (y - 4) * CellSize;
+            float size = CellSize;
+            Vector3 normal = Vector3.Up;
+            float yPos = 0.02f;
+            VertexPositionNormalTexture[] verts = new VertexPositionNormalTexture[6];
+            verts[0] = new VertexPositionNormalTexture(new Vector3(startX, yPos, startZ), normal, new Vector2(0, 0));
+            verts[1] = new VertexPositionNormalTexture(new Vector3(startX + size, yPos, startZ), normal, new Vector2(1, 0));
+            verts[2] = new VertexPositionNormalTexture(new Vector3(startX + size, yPos, startZ + size), normal, new Vector2(1, 1));
+            verts[3] = new VertexPositionNormalTexture(new Vector3(startX + size, yPos, startZ + size), normal, new Vector2(1, 1));
+            verts[4] = new VertexPositionNormalTexture(new Vector3(startX, yPos, startZ + size), normal, new Vector2(0, 1));
+            verts[5] = new VertexPositionNormalTexture(new Vector3(startX, yPos, startZ), normal, new Vector2(0, 0));
+
+            foreach (var pass in _effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, verts, 0, 2);
+            }
         }
 
         private void DrawCampfire()
         {
+            if (!IsTileVisible(_campfireTile))
+                return;
             float flicker = (0.1f + (float)_random.NextDouble() * 0.05f) * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             const float baseScale = 0.5f;
@@ -726,6 +790,8 @@ namespace TheatreGame
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             foreach (var c in _characters)
             {
+                if (!IsTileVisible(c.BoardPos))
+                    continue;
                 var tex = c.Texture ?? _pawnTexture;
                 Vector3 world = BoardToWorld(new Vector2(c.BoardPos.X, c.BoardPos.Y));
                 const float baseScale = 0.5f;
@@ -748,6 +814,8 @@ namespace TheatreGame
 
                 foreach (var c in _characters)
                 {
+                    if (!IsTileVisible(c.BoardPos))
+                        continue;
                     var tex = c.Texture ?? _pawnTexture;
                     Vector2 dir = c.ScreenPos - lightPos;
                     float dist = dir.Length();
@@ -953,10 +1021,40 @@ namespace TheatreGame
             _grainTexture.SetData(_grainData);
         }
 
+        private void SetAllFog(bool value)
+        {
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                    _fog[x, y] = value;
+        }
+
+        private void ClearFogAround(Point center, int radius)
+        {
+            for (int x = 0; x < 8; x++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    int dx = Math.Abs(x - center.X);
+                    int dy = Math.Abs(y - center.Y);
+                    if (dx + dy <= radius)
+                        _fog[x, y] = false;
+                }
+            }
+        }
+
+        private bool IsTileVisible(Point tile)
+        {
+            if (tile.X < 0 || tile.X > 7 || tile.Y < 0 || tile.Y > 7)
+                return true;
+            return !_fog[tile.X, tile.Y];
+        }
+
         private void EndTurn()
         {
             if (_moving)
                 return;
+
+            SetAllFog(true);
 
             var player = _characters.Find(c => c.IsPlayer);
             var ai = _characters.Find(c => !c.IsPlayer);
