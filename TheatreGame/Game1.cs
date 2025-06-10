@@ -169,7 +169,6 @@ namespace TheatreGame
                 applePos = new Point(_random.Next(8), _random.Next(8));
             } while (applePos == _campfireTile || applePos == playerPos || applePos == aiPos);
             _entities.Add(new Entity(applePos, null, 0.25f, false, new Vector2(16, 16)));
-            ClearFogAround(applePos, 0);
 
             int buttonWidth = 140;
             int buttonHeight = 40;
@@ -181,6 +180,7 @@ namespace TheatreGame
 
             SetAllFog(true);
             ClearFogAround(playerPos, 3);
+            ClearFogAround(applePos, 0);
         }
 
         private Texture2D LoadTexture(string fileName)
@@ -491,12 +491,12 @@ namespace TheatreGame
                 Point start = _moving && _aiPathStart.HasValue ? _aiPathStart.Value : ai.BoardPos;
                 DrawPath(start, _aiPath, Color.Orange);
             }
+            DrawFog();
             DrawCampfire();
             DrawEntities();
             DrawShadows();
             DrawCharacters();
             DrawParticles();
-            DrawFog();
 
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             _spriteBatch.Draw(_grainTexture,
