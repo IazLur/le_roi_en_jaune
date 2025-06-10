@@ -130,3 +130,12 @@ save_if_missing(smoke, 'TheatreGame/Content/smoke_particle.png')
 # Simple fog texture used for fog of war overlay
 fog = Image.new('RGBA', (128, 128), (100, 100, 100, 200))
 save_if_missing(fog, 'TheatreGame/Content/fog.png')
+
+# Simple apple sprite (32x32)
+apple = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
+apple_draw = ImageDraw.Draw(apple)
+# apple body
+apple_draw.ellipse([4, 6, 28, 30], fill=(200, 0, 0))
+# stem
+apple_draw.rectangle([14, 2, 18, 10], fill=(100, 60, 0))
+save_if_missing(apple, 'TheatreGame/Content/apple.png')

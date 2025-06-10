@@ -24,6 +24,7 @@ namespace TheatreGame
         private Texture2D _gridTexture;
 
         private Texture2D _campfireTexture;
+        private Texture2D _appleTexture;
         private Texture2D _pawnTexture;
         private Texture2D _bishopTexture;
         private Texture2D _spinnerTexture;
@@ -83,6 +84,7 @@ namespace TheatreGame
         private List<Character> _characters = new List<Character>();
         private bool[,] _fog = new bool[8,8];
         private readonly Point _campfireTile = new Point(4, 3);
+        private Point _appleTile;
         private Point? _hoveredTile;
         private Point? _selectedTile;
         private List<Point> _playerPath;
@@ -188,6 +190,11 @@ namespace TheatreGame
                 IsPlayer = false
             });
 
+            do
+            {
+                _appleTile = new Point(_random.Next(8), _random.Next(8));
+            } while (_appleTile == _campfireTile || _appleTile == playerPos || _appleTile == aiPos);
+
             int buttonWidth = 140;
             int buttonHeight = 40;
             _endTurnButtonRect = new Rectangle(
@@ -253,6 +260,7 @@ namespace TheatreGame
             _gridTexture = LoadTexture("grid_overlay.png");
 
             _campfireTexture = LoadTexture("campfire.png");
+            _appleTexture = LoadTexture("apple.png");
 
             _pawnTexture = LoadTexture("pawn.png");
             _bishopTexture = LoadTexture("bishop.png");
@@ -489,6 +497,7 @@ namespace TheatreGame
                 DrawPath(start, _aiPath, Color.Orange);
             }
             DrawCampfire();
+            DrawApple();
             DrawShadows();
             DrawCharacters();
             DrawParticles();
@@ -653,6 +662,21 @@ namespace TheatreGame
                 null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             _spriteBatch.Draw(_lightGradientTexture, _campfireScreenPos - new Vector2(128, 128) * ratio,
                 null, Color.White * flicker, 0f, Vector2.Zero, 2f * ratio, SpriteEffects.None, 0f);
+            _spriteBatch.End();
+        }
+
+        private void DrawApple()
+        {
+            if (!IsTileVisible(_appleTile))
+                return;
+            Vector2 screenPos = BoardToScreen(_appleTile);
+            _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
+            const float baseScale = 0.25f;
+            Vector3 world = BoardToWorld(new Vector2(_appleTile.X, _appleTile.Y));
+            float scale = GetScaleForWorldPosition(world, baseScale);
+            float ratio = scale / baseScale;
+            _spriteBatch.Draw(_appleTexture, screenPos - new Vector2(16, 16) * ratio,
+                null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             _spriteBatch.End();
         }
 
