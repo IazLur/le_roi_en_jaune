@@ -82,7 +82,7 @@ namespace TheatreGame
 
         private List<Character> _characters = new List<Character>();
         private bool[,] _fog = new bool[8,8];
-        private readonly Point _campfireTile = new Point(4, 4);
+        private readonly Point _campfireTile = new Point(4, 3);
         private Point? _hoveredTile;
         private Point? _selectedTile;
         private List<Point> _playerPath;
@@ -152,7 +152,10 @@ namespace TheatreGame
             _dustParticles = new List<Particle>();
             _fireParticles = new List<Particle>();
             _smokeParticles = new List<Particle>();
-            _lightPositions = new List<Vector3> { Vector3.Zero }; // campfire
+            _lightPositions = new List<Vector3>
+            {
+                BoardToWorld(new Vector2(_campfireTile.X, _campfireTile.Y))
+            };
             SpawnParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
             SpawnParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
 
@@ -337,7 +340,7 @@ namespace TheatreGame
             _cameraTarget.Z = MathHelper.Clamp(_cameraTarget.Z, -CameraMoveLimit, CameraMoveLimit);
             _cameraPosition = _cameraTarget + direction * _cameraDistance;
             _viewMatrix = Matrix.CreateLookAt(_cameraPosition, _cameraTarget, Vector3.Up);
-            var campfireScreen = GraphicsDevice.Viewport.Project(Vector3.Zero, _projectionMatrix, _viewMatrix, Matrix.Identity);
+            var campfireScreen = GraphicsDevice.Viewport.Project(_lightPositions[0], _projectionMatrix, _viewMatrix, Matrix.Identity);
             _campfireScreenPos = new Vector2(campfireScreen.X, campfireScreen.Y);
             Vector2 campfireDelta = _campfireScreenPos - _prevCampfireScreenPos;
             if (!_moving)
