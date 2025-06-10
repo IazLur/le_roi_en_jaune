@@ -69,11 +69,10 @@ namespace TheatreGame
 
         private const int ToolbarHeight = 80;
 
-        private const float CellSize = 2.5f;
 
         private List<Character> _characters = new List<Character>();
         private List<Entity> _entities = new List<Entity>();
-        private bool[,] _fog = new bool[8,8];
+        private FogSystem _fogSystem = new FogSystem();
         private readonly Point _campfireTile = new Point(4, 3);
         private Point? _hoveredTile;
         private Point? _selectedTile;
@@ -136,7 +135,7 @@ namespace TheatreGame
             _smokeParticles = new List<Particle>();
             _lightPositions = new List<Vector3>
             {
-                BoardToWorld(new Vector2(_campfireTile.X, _campfireTile.Y))
+                BoardUtils.BoardToWorld(new Vector2(_campfireTile.X, _campfireTile.Y))
             };
             SpawnParticles(_lightParticles, 100, new Color(255, 255, 200, 200));
             SpawnParticles(_dustParticles, 200, new Color(150, 120, 100, 150));
@@ -158,10 +157,16 @@ namespace TheatreGame
 
 
             var playerPos = new Point(4, 7);
-            _characters.Add(new Character(playerPos, null, true) { ScreenPos = BoardToScreen(playerPos) });
+            _characters.Add(new Character(playerPos, null, true)
+            {
+                ScreenPos = BoardUtils.BoardToScreen(playerPos, GraphicsDevice, _projectionMatrix, _viewMatrix)
+            });
 
             var aiPos = new Point(4, 0);
-            _characters.Add(new Character(aiPos, null, false) { ScreenPos = BoardToScreen(aiPos) });
+            _characters.Add(new Character(aiPos, null, false)
+            {
+                ScreenPos = BoardUtils.BoardToScreen(aiPos, GraphicsDevice, _projectionMatrix, _viewMatrix)
+            });
 
             Point applePos;
             do
@@ -169,7 +174,7 @@ namespace TheatreGame
                 applePos = new Point(_random.Next(8), _random.Next(8));
             } while (applePos == _campfireTile || applePos == playerPos || applePos == aiPos);
             _entities.Add(new Entity(applePos, _appleTexture, 0.25f, false, new Vector2(16, 16)));
-            ClearFogAround(applePos, 0);
+            _fogSystem.ClearAround(applePos, 0);
 
             int buttonWidth = 140;
             int buttonHeight = 40;
@@ -179,8 +184,8 @@ namespace TheatreGame
                 buttonWidth,
                 buttonHeight);
 
-            SetAllFog(true);
-            ClearFogAround(playerPos, 3);
+            _fogSystem.SetAll(true);
+            _fogSystem.ClearAround(playerPos, 3);
         }
 
         private Texture2D LoadTexture(string fileName)
@@ -259,7 +264,7 @@ namespace TheatreGame
                     e.Texture = _campfireTexture;
                 else
                     e.Texture = _appleTexture;
-                e.ScreenPos = BoardToScreen(e.BoardPos);
+                e.ScreenPos = BoardUtils.BoardToScreen(e.BoardPos, GraphicsDevice, _projectionMatrix, _viewMatrix);
             }
 
             _fontSystem = new FontStashSharp.FontSystem();
@@ -346,7 +351,7 @@ namespace TheatreGame
                     EndTurn();
                 }
 
-                _hoveredTile = ScreenToBoard(mouse.Position);
+                _hoveredTile = BoardUtils.ScreenToBoard(mouse.Position, GraphicsDevice, _projectionMatrix, _viewMatrix);
 
                 if (mouse.LeftButton == ButtonState.Pressed &&
                     _prevMouseState.LeftButton == ButtonState.Released &&
@@ -375,8 +380,8 @@ namespace TheatreGame
                     {
                         anyMoving = true;
                         Point next = c.Path.Peek();
-                        Vector2 from = BoardToScreen(c.BoardPos);
-                        Vector2 to = BoardToScreen(next);
+                        Vector2 from = BoardUtils.BoardToScreen(c.BoardPos, GraphicsDevice, _projectionMatrix, _viewMatrix);
+                        Vector2 to = BoardUtils.BoardToScreen(next, GraphicsDevice, _projectionMatrix, _viewMatrix);
                         c.MoveProgress += 3f * (float)gameTime.ElapsedGameTime.TotalSeconds;
                         float t = MathF.Min(1f, c.MoveProgress);
                         c.ScreenPos = Vector2.Lerp(from, to, t);
@@ -385,7 +390,7 @@ namespace TheatreGame
                             c.BoardPos = next;
                             c.Path.Dequeue();
                             c.MoveProgress = 0f;
-                            c.ScreenPos = BoardToScreen(c.BoardPos);
+                            c.ScreenPos = BoardUtils.BoardToScreen(c.BoardPos, GraphicsDevice, _projectionMatrix, _viewMatrix);
                         }
                         _characters[i] = c;
                     }
@@ -403,7 +408,7 @@ namespace TheatreGame
                     _aiPathStart = null;
                     _selectedTile = null;
                     var playerChar = _characters.Find(ch => ch.IsPlayer);
-                    ClearFogAround(playerChar.BoardPos, 3);
+                    _fogSystem.ClearAround(playerChar.BoardPos, 3);
                     _turn++;
                 }
             }
@@ -412,7 +417,7 @@ namespace TheatreGame
                 for (int i = 0; i < _characters.Count; i++)
                 {
                     var c = _characters[i];
-                    c.ScreenPos = BoardToScreen(c.BoardPos);
+                    c.ScreenPos = BoardUtils.BoardToScreen(c.BoardPos, GraphicsDevice, _projectionMatrix, _viewMatrix);
                     _characters[i] = c;
                 }
             }
@@ -577,7 +582,7 @@ namespace TheatreGame
             }
             _spriteBatch.End();
 
-            if (IsTileVisible(_campfireTile))
+            if (_fogSystem.IsVisible(_campfireTile))
             {
                 _spriteBatch.Begin(blendState: BlendState.Additive);
                 foreach (var p in _fireParticles)
@@ -588,7 +593,7 @@ namespace TheatreGame
                 _spriteBatch.End();
 
                 _spriteBatch.Begin();
-                float smokeRatio = GetScaleForWorldPosition(Vector3.Zero, 1f);
+                float smokeRatio = BoardUtils.GetScaleForWorldPosition(Vector3.Zero, 1f, _cameraPosition, _initialCameraDistance);
                 foreach (var p in _smokeParticles)
                 {
                     _spriteBatch.Draw(_smokeTexture, p.Position, null, p.Color,
@@ -614,7 +619,7 @@ namespace TheatreGame
             {
                 for (int y = 0; y < 8; y++)
                 {
-                    if (!_fog[x, y])
+                    if (_fogSystem.IsVisible(new Point(x, y)))
                         continue;
                     DrawFogTile(x, y);
                 }
@@ -624,9 +629,9 @@ namespace TheatreGame
 
         private void DrawFogTile(int x, int y)
         {
-            float startX = (x - 4) * CellSize;
-            float startZ = (y - 4) * CellSize;
-            float size = CellSize;
+            float startX = (x - 4) * BoardUtils.CellSize;
+            float startZ = (y - 4) * BoardUtils.CellSize;
+            float size = BoardUtils.CellSize;
             Vector3 normal = Vector3.Up;
             float yPos = 0.02f;
             VertexPositionNormalTexture[] verts = new VertexPositionNormalTexture[6];
@@ -646,12 +651,12 @@ namespace TheatreGame
 
         private void DrawCampfire()
         {
-            if (!IsTileVisible(_campfireTile))
+            if (!_fogSystem.IsVisible(_campfireTile))
                 return;
             float flicker = (0.1f + (float)_random.NextDouble() * 0.05f) * 0.2f;
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             const float baseScale = 0.5f;
-            float scale = GetScaleForWorldPosition(Vector3.Zero, baseScale);
+            float scale = BoardUtils.GetScaleForWorldPosition(Vector3.Zero, baseScale, _cameraPosition, _initialCameraDistance);
             float ratio = scale / baseScale;
             _spriteBatch.Draw(_campfireTexture, _campfireScreenPos - new Vector2(32, 64) * ratio,
                 null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
@@ -667,11 +672,11 @@ namespace TheatreGame
             {
                 if (e.IsLightSource || e.Texture == null)
                     continue;
-                if (!IsTileVisible(e.BoardPos))
+                if (!_fogSystem.IsVisible(e.BoardPos))
                     continue;
-                Vector2 screen = BoardToScreen(e.BoardPos);
-                Vector3 world = BoardToWorld(new Vector2(e.BoardPos.X, e.BoardPos.Y));
-                float scale = GetScaleForWorldPosition(world, e.BaseScale);
+                Vector2 screen = BoardUtils.BoardToScreen(e.BoardPos, GraphicsDevice, _projectionMatrix, _viewMatrix);
+                Vector3 world = BoardUtils.BoardToWorld(new Vector2(e.BoardPos.X, e.BoardPos.Y));
+                float scale = BoardUtils.GetScaleForWorldPosition(world, e.BaseScale, _cameraPosition, _initialCameraDistance);
                 float ratio = scale / e.BaseScale;
                 _spriteBatch.Draw(e.Texture, screen - e.Origin * ratio, null,
                     Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
@@ -679,53 +684,6 @@ namespace TheatreGame
             _spriteBatch.End();
         }
 
-        private Vector2 BoardToScreen(Point boardPos)
-        {
-            return BoardToScreen(new Vector2(boardPos.X, boardPos.Y));
-        }
-
-        private Vector2 BoardToScreen(Vector2 boardPos)
-        {
-            Vector3 world = new Vector3((boardPos.X - 3.5f) * CellSize, 0f,
-                (boardPos.Y - 3.5f) * CellSize);
-            var screen = GraphicsDevice.Viewport.Project(world,
-                _projectionMatrix, _viewMatrix, Matrix.Identity);
-            return new Vector2(screen.X, screen.Y);
-        }
-
-        private Vector3 BoardToWorld(Vector2 boardPos)
-        {
-            return new Vector3((boardPos.X - 3.5f) * CellSize, 0f,
-                (boardPos.Y - 3.5f) * CellSize);
-        }
-
-        private float GetScaleForWorldPosition(Vector3 worldPos, float baseScale)
-        {
-            float distance = Vector3.Distance(_cameraPosition, worldPos);
-            if (distance <= 0.001f)
-                return baseScale;
-            return baseScale * (_initialCameraDistance / distance);
-        }
-
-        private Point? ScreenToBoard(Point screen)
-        {
-            Vector3 nearSource = new Vector3(screen.X, screen.Y, 0f);
-            Vector3 farSource = new Vector3(screen.X, screen.Y, 1f);
-            Vector3 nearPoint = GraphicsDevice.Viewport.Unproject(nearSource,
-                _projectionMatrix, _viewMatrix, Matrix.Identity);
-            Vector3 farPoint = GraphicsDevice.Viewport.Unproject(farSource,
-                _projectionMatrix, _viewMatrix, Matrix.Identity);
-            Vector3 direction = Vector3.Normalize(farPoint - nearPoint);
-            if (direction.Y >= 0f)
-                return null;
-            float distance = -nearPoint.Y / direction.Y;
-            Vector3 world = nearPoint + direction * distance;
-            int x = (int)Math.Floor(world.X / CellSize + 4f);
-            int y = (int)Math.Floor(world.Z / CellSize + 4f);
-            if (x < 0 || x > 7 || y < 0 || y > 7)
-                return null;
-            return new Point(x, y);
-        }
 
         private void DrawLine(Vector2 start, Vector2 end, Color color, float thickness)
         {
@@ -741,10 +699,10 @@ namespace TheatreGame
                 return;
 
             _spriteBatch.Begin();
-            Vector2 from = BoardToScreen(start);
+            Vector2 from = BoardUtils.BoardToScreen(start, GraphicsDevice, _projectionMatrix, _viewMatrix);
             foreach (var step in path)
             {
-                Vector2 to = BoardToScreen(step);
+                Vector2 to = BoardUtils.BoardToScreen(step, GraphicsDevice, _projectionMatrix, _viewMatrix);
                 DrawLine(from, to, color, 3f);
                 from = to;
             }
@@ -753,48 +711,7 @@ namespace TheatreGame
 
         private List<Point> FindPath(Point start, Point goal, bool[,] occupied)
         {
-            if (occupied[goal.X, goal.Y])
-                return null;
-
-            Queue<Point> q = new Queue<Point>();
-            q.Enqueue(start);
-            Dictionary<Point, Point> prev = new Dictionary<Point, Point>();
-            prev[start] = start;
-            Point[] dirs = new[] { new Point(1,0), new Point(-1,0), new Point(0,1), new Point(0,-1) };
-
-            while (q.Count > 0)
-            {
-                Point cur = q.Dequeue();
-                if (cur == goal)
-                    break;
-                foreach (var d in dirs)
-                {
-                    int nx = cur.X + d.X;
-                    int ny = cur.Y + d.Y;
-                    if (nx < 0 || nx > 7 || ny < 0 || ny > 7)
-                        continue;
-                    Point np = new Point(nx, ny);
-                    if (occupied[nx, ny] && np != goal)
-                        continue;
-                    if (!prev.ContainsKey(np))
-                    {
-                        prev[np] = cur;
-                        q.Enqueue(np);
-                    }
-                }
-            }
-
-            if (!prev.ContainsKey(goal))
-                return null;
-
-            List<Point> path = new List<Point>();
-            Point p = goal;
-            while (p != start)
-            {
-                path.Insert(0, p);
-                p = prev[p];
-            }
-            return path;
+            return BoardUtils.FindPath(start, goal, (x, y) => occupied[x, y]);
         }
 
         private bool[,] GetOccupied()
@@ -817,12 +734,12 @@ namespace TheatreGame
             _spriteBatch.Begin(blendState: BlendState.AlphaBlend);
             foreach (var c in _characters)
             {
-                if (!IsTileVisible(c.BoardPos))
+                if (!_fogSystem.IsVisible(c.BoardPos))
                     continue;
                 var tex = c.Texture ?? _pawnTexture;
-                Vector3 world = BoardToWorld(new Vector2(c.BoardPos.X, c.BoardPos.Y));
+                Vector3 world = BoardUtils.BoardToWorld(new Vector2(c.BoardPos.X, c.BoardPos.Y));
                 const float baseScale = 0.5f;
-                float scale = GetScaleForWorldPosition(world, baseScale);
+                float scale = BoardUtils.GetScaleForWorldPosition(world, baseScale, _cameraPosition, _initialCameraDistance);
                 float ratio = scale / baseScale;
                 _spriteBatch.Draw(tex, c.ScreenPos - new Vector2(32, 64) * ratio,
                     null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
@@ -841,7 +758,7 @@ namespace TheatreGame
 
                 foreach (var c in _characters)
                 {
-                    if (!IsTileVisible(c.BoardPos))
+                    if (!_fogSystem.IsVisible(c.BoardPos))
                         continue;
                     Vector2 dir = c.ScreenPos - lightPos;
                     float dist = dir.Length();
@@ -862,9 +779,9 @@ namespace TheatreGame
 
                 foreach (var e in _entities)
                 {
-                    if (e.IsLightSource || !IsTileVisible(e.BoardPos))
+                    if (e.IsLightSource || !_fogSystem.IsVisible(e.BoardPos))
                         continue;
-                    Vector2 entityScreen = BoardToScreen(e.BoardPos);
+                    Vector2 entityScreen = BoardUtils.BoardToScreen(e.BoardPos, GraphicsDevice, _projectionMatrix, _viewMatrix);
                     Vector2 dir = entityScreen - lightPos;
                     float dist = dir.Length();
                     if (dist < 1f)
@@ -932,10 +849,10 @@ namespace TheatreGame
 
         private void DrawTileBorder(Point tile, Color color)
         {
-            Vector2 tl = BoardToScreen(new Vector2(tile.X - 0.5f, tile.Y - 0.5f));
-            Vector2 tr = BoardToScreen(new Vector2(tile.X + 0.5f, tile.Y - 0.5f));
-            Vector2 br = BoardToScreen(new Vector2(tile.X + 0.5f, tile.Y + 0.5f));
-            Vector2 bl = BoardToScreen(new Vector2(tile.X - 0.5f, tile.Y + 0.5f));
+            Vector2 tl = BoardUtils.BoardToScreen(new Vector2(tile.X - 0.5f, tile.Y - 0.5f), GraphicsDevice, _projectionMatrix, _viewMatrix);
+            Vector2 tr = BoardUtils.BoardToScreen(new Vector2(tile.X + 0.5f, tile.Y - 0.5f), GraphicsDevice, _projectionMatrix, _viewMatrix);
+            Vector2 br = BoardUtils.BoardToScreen(new Vector2(tile.X + 0.5f, tile.Y + 0.5f), GraphicsDevice, _projectionMatrix, _viewMatrix);
+            Vector2 bl = BoardUtils.BoardToScreen(new Vector2(tile.X - 0.5f, tile.Y + 0.5f), GraphicsDevice, _projectionMatrix, _viewMatrix);
 
             _spriteBatch.Begin();
             DrawLine(tl, tr, color, 2f);
@@ -957,7 +874,7 @@ namespace TheatreGame
                 Color border = ok ? Color.LimeGreen : Color.Red;
 
                 GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                DrawTileQuad((_hoveredTile.Value.X - 4) * CellSize, (_hoveredTile.Value.Y - 4) * CellSize, CellSize, fill);
+                DrawTileQuad((_hoveredTile.Value.X - 4) * BoardUtils.CellSize, (_hoveredTile.Value.Y - 4) * BoardUtils.CellSize, BoardUtils.CellSize, fill);
                 DrawTileBorder(_hoveredTile.Value, border);
                 GraphicsDevice.BlendState = BlendState.Opaque;
             }
@@ -965,7 +882,7 @@ namespace TheatreGame
             if (_selectedTile.HasValue)
             {
                 GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                DrawTileQuad((_selectedTile.Value.X - 4) * CellSize, (_selectedTile.Value.Y - 4) * CellSize, CellSize, new Color(0, 200, 0, 60));
+                DrawTileQuad((_selectedTile.Value.X - 4) * BoardUtils.CellSize, (_selectedTile.Value.Y - 4) * BoardUtils.CellSize, BoardUtils.CellSize, new Color(0, 200, 0, 60));
                 DrawTileBorder(_selectedTile.Value, Color.Green);
                 GraphicsDevice.BlendState = BlendState.Opaque;
             }
@@ -1072,40 +989,13 @@ namespace TheatreGame
             _grainTexture.SetData(_grainData);
         }
 
-        private void SetAllFog(bool value)
-        {
-            for (int x = 0; x < 8; x++)
-                for (int y = 0; y < 8; y++)
-                    _fog[x, y] = value;
-        }
-
-        private void ClearFogAround(Point center, int radius)
-        {
-            for (int x = 0; x < 8; x++)
-            {
-                for (int y = 0; y < 8; y++)
-                {
-                    int dx = Math.Abs(x - center.X);
-                    int dy = Math.Abs(y - center.Y);
-                    if (dx + dy <= radius)
-                        _fog[x, y] = false;
-                }
-            }
-        }
-
-        private bool IsTileVisible(Point tile)
-        {
-            if (tile.X < 0 || tile.X > 7 || tile.Y < 0 || tile.Y > 7)
-                return true;
-            return !_fog[tile.X, tile.Y];
-        }
 
         private void EndTurn()
         {
             if (_moving)
                 return;
 
-            SetAllFog(true);
+            _fogSystem.SetAll(true);
 
             var player = _characters.Find(c => c.IsPlayer);
             var ai = _characters.Find(c => !c.IsPlayer);
