@@ -83,6 +83,7 @@ namespace TheatreGame
         private Point? _aiPathStart;
         private bool _moving;
         private float _spinnerRotation;
+        private float _overlayAlpha;
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -168,6 +169,7 @@ namespace TheatreGame
                 applePos = new Point(_random.Next(8), _random.Next(8));
             } while (applePos == _campfireTile || applePos == playerPos || applePos == aiPos);
             _entities.Add(new Entity(applePos, null, 0.25f, false, new Vector2(16, 16)));
+            ClearFogAround(applePos, 0);
 
             int buttonWidth = 140;
             int buttonHeight = 40;
@@ -389,7 +391,9 @@ namespace TheatreGame
                     }
                 }
 
-                _spinnerRotation += 5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+                if (_moving || _overlayAlpha > 0f)
+                    _spinnerRotation += 5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+
                 if (!anyMoving)
                 {
                     _moving = false;
@@ -412,6 +416,13 @@ namespace TheatreGame
                     _characters[i] = c;
                 }
             }
+
+            float fadeStep = (float)gameTime.ElapsedGameTime.TotalSeconds / 0.5f;
+            if (_moving)
+                _overlayAlpha = MathF.Min(1f, _overlayAlpha + fadeStep);
+            else
+                _overlayAlpha = MathF.Max(0f, _overlayAlpha - fadeStep);
+
             UpdateParticles(gameTime, _lightParticles);
             UpdateParticles(gameTime, _dustParticles);
             UpdateFireParticles(gameTime, _fireParticles, _campfireScreenPos, 10f);
@@ -1133,6 +1144,7 @@ namespace TheatreGame
 
             _moving = true;
             _spinnerRotation = 0f;
+            _overlayAlpha = 0f;
             _hoveredTile = null;
         }
 
@@ -1166,10 +1178,13 @@ namespace TheatreGame
             _spriteBatch.DrawString(_font, $"Map: {MapName}", new Vector2(marginX, startY), Color.White);
             _spriteBatch.End();
 
-            if (_moving)
+            if (_overlayAlpha > 0f)
             {
                 Vector2 center = new Vector2(_graphics.PreferredBackBufferWidth / 2f, _graphics.PreferredBackBufferHeight / 2f);
                 _spriteBatch.Begin();
+                _spriteBatch.Draw(_particleTexture,
+                    new Rectangle(0, 0, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight),
+                    Color.Black * _overlayAlpha);
                 _spriteBatch.Draw(_spinnerTexture, center, null, Color.White, _spinnerRotation,
                     new Vector2(_spinnerTexture.Width / 2f, _spinnerTexture.Height / 2f), 1f, SpriteEffects.None, 0f);
                 _spriteBatch.End();
